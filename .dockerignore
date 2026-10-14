@@ -1,0 +1,12 @@
+# Model weights are mounted as a volume, never baked into an image
+model/
+venv/
+venv-vllm/
+backup/
+**/__pycache__/
+*.pyc
+*.log
+.git/
+Dockerfile
+docker-compose.yml
+.dockerignore

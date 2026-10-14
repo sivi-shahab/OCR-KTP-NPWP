@@ -1,0 +1,28 @@
+# Model weights (7 GB) are mounted as a volume, never committed
+model/
+
+# Virtual environments
+venv/
+venv-vllm/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
+
+# Local env / secrets
+.env
+.env.*
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
