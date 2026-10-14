@@ -228,7 +228,8 @@ Model dimuat langsung di proses API. Lebih sederhana, tapi request diproses satu
 
 ```bash
 screen -S vllm -X quit        # matikan vLLM dulu, GPU tidak cukup untuk keduanya
-python main.py                # INFERENCE_BACKEND default = hf
+pip install -r requirements-hf.txt   # sekali saja: torch/transformers tidak terpasang di venv/
+INFERENCE_BACKEND=hf python main.py
 ```
 
 ## Docker
@@ -301,7 +302,7 @@ docker run -d --name ocr-api --network host \
 
 | Variable | Default | Keterangan |
 |---|---|---|
-| `INFERENCE_BACKEND` | `hf` | `vllm` (production) atau `hf` |
+| `INFERENCE_BACKEND` | `vllm` | `vllm` (production) atau `hf` |
 | `HOST` | `0.0.0.0` | Alamat bind API |
 | `PORT` | `8070` | Port API |
 | `VLLM_URL` | `http://127.0.0.1:8071` | Alamat server vLLM |

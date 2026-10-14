@@ -1,6 +1,7 @@
 """Entry point: `python main.py` or `uvicorn main:app`.
 
-Set INFERENCE_BACKEND=vllm to use the vLLM server started by run_vllm.sh.
+Uses the vLLM server started by run_vllm.sh by default; set INFERENCE_BACKEND=hf
+to load the model in-process (needs requirements-hf.txt).
 """
 
 import logging

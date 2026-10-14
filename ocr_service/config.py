@@ -9,7 +9,7 @@ class Settings:
     # "hf"   = load the model in-process with transformers
     # "vllm" = call a separate `vllm serve` instance (see run_vllm.sh); batches
     #          concurrent requests instead of serializing them
-    backend: str = "hf"
+    backend: str = "vllm"
 
     model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct"
     model_dir: str = "model/"
