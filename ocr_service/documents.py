@@ -1,13 +1,14 @@
 """Registry of supported document types. Each one gets its own POST /extract/{key} endpoint.
 
-To support a new document: add its data model in schemas.py and register it here.
+To support a new document: add its data model in schemas.py, its prompt in prompts.py,
+and register it here.
 """
 
 from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from .extraction import build_prompt
+from .prompts import KTP_PROMPT, NPWP_PROMPT
 from .schemas import KTPData, KTPResponse, NPWPData, NPWPResponse
 
 
@@ -22,7 +23,11 @@ class DocumentType:
 
     @property
     def json_schema(self) -> dict:
-        return self.data_model.model_json_schema()
+        schema = self.data_model.model_json_schema()
+        # Every field has a "" default, so pydantic marks none as required; without this,
+        # vLLM's constrained decoding lets the model silently skip keys.
+        schema["required"] = list(schema["properties"])
+        return schema
 
 
 KTP = DocumentType(
@@ -30,7 +35,7 @@ KTP = DocumentType(
     label="KTP",
     data_model=KTPData,
     response_model=KTPResponse,
-    prompt=build_prompt("KTP (identity card)", "KTP", KTPData),
+    prompt=KTP_PROMPT,
     log_fields=("NIK", "NAMA"),
 )
 
@@ -39,19 +44,7 @@ NPWP = DocumentType(
     label="NPWP",
     data_model=NPWPData,
     response_model=NPWPResponse,
-    prompt=build_prompt(
-        "NPWP (tax ID card)",
-        "NPWP card",
-        NPWPData,
-        field_notes="""
-- NPWP: the tax number exactly as printed, keeping dots and dashes (e.g. 01.234.567.8-901.000),
-  or the 16-digit number on newer cards.
-- NIK: the 16-digit NIK if printed on the card, otherwise "".
-- KPP: the issuing tax office name (e.g. KPP PRATAMA JAKARTA SETIABUDI SATU).
-- TANGGAL_TERDAFTAR: the registration date as printed.
-""",
-        empty_when="unreadable or missing",
-    ),
+    prompt=NPWP_PROMPT,
     log_fields=("NPWP", "NAMA"),
 )
 

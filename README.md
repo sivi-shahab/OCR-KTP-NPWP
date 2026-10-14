@@ -119,7 +119,8 @@ flowchart TD
     subgraph pkg["ocr_service/"]
         api["api.py<br/>route per dokumen, validasi upload, mapping error HTTP"]
         docs["documents.py<br/>registry: KTP, NPWP<br/>(schema + prompt)"]
-        extraction["extraction.py<br/>build_prompt · parse_fields"]
+        prompts["prompts.py<br/>KTP_PROMPT · NPWP_PROMPT"]
+        extraction["extraction.py<br/>parse_fields"]
         images["images.py<br/>decode · limit_pixels"]
         schemas["schemas.py<br/>KTPData · NPWPData · responses"]
         config["config.py<br/>Settings dari env var"]
@@ -137,7 +138,8 @@ flowchart TD
     api --> config
     api --> base
     docs --> schemas
-    docs --> extraction
+    docs --> prompts
+    prompts --> schemas
     base -.-> vllmb
     base -.-> hfb
 ```
@@ -410,7 +412,8 @@ ocr_service/
 ├── config.py           Settings dari environment variable
 ├── schemas.py          KTPData, NPWPData, response models
 ├── documents.py        registry jenis dokumen (KTP, NPWP): schema + prompt
-├── extraction.py       pembuat prompt + parsing output model
+├── prompts.py          prompt khusus per dokumen (layout kartu + aturan per field)
+├── extraction.py       parsing output model
 ├── images.py           decode & resize gambar
 ├── api.py              route FastAPI (1 endpoint per dokumen) & mapping error HTTP
 └── backends/
@@ -422,8 +425,8 @@ backup/                 versi kode sebelumnya (untuk rollback)
 
 ### Menambah field atau jenis dokumen baru
 
-- **Field baru:** tambahkan di model data (`KTPData` / `NPWPData` di `schemas.py`). Prompt dan JSON schema vLLM ikut ter-update otomatis.
-- **Dokumen baru** (mis. SIM): buat `SIMData` + `SIMResponse` di `schemas.py`, lalu daftarkan `DocumentType` baru di `documents.py` dan tambahkan ke `DOCUMENTS`. Endpoint `POST /extract/sim` otomatis tersedia setelah restart API (vLLM tidak perlu di-restart).
+- **Field baru:** tambahkan di model data (`KTPData` / `NPWPData` di `schemas.py`), lalu tambahkan aturan field-nya di `prompts.py`. Daftar key JSON di prompt dan JSON schema vLLM ikut ter-update otomatis.
+- **Dokumen baru** (mis. SIM): buat `SIMData` + `SIMResponse` di `schemas.py` dan `SIM_PROMPT` di `prompts.py`, lalu daftarkan `DocumentType` baru di `documents.py` dan tambahkan ke `DOCUMENTS`. Endpoint `POST /extract/sim` otomatis tersedia setelah restart API (vLLM tidak perlu di-restart).
 
 ### Rollback
 

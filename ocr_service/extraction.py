@@ -1,4 +1,4 @@
-"""Prompt construction and parsing of the model's answer into a document's data model."""
+"""Parsing of the model's answer into a document's data model."""
 
 import json
 import re
@@ -14,28 +14,6 @@ _TRAILING_COMMA = re.compile(r",\s*}")
 
 class OutputParseError(ValueError):
     """The model's answer did not contain a usable JSON object."""
-
-
-def build_prompt(
-    document: str,
-    image_label: str,
-    data_model: type[BaseModel],
-    field_notes: str = "",
-    empty_when: str = "unreadable",
-) -> str:
-    """Build the extraction prompt; the JSON keys come straight from `data_model`.
-
-    `document` e.g. "KTP (identity card)", `image_label` e.g. "KTP" ("this KTP image"),
-    `empty_when` e.g. "unreadable or missing" ('Use "" for unreadable or missing fields').
-    """
-    template = json.dumps(data_model().model_dump(), separators=(",", ":"))
-    notes = f"\nField notes:\n{field_notes.strip()}\n" if field_notes else ""
-    return f"""You are an OCR system specialized in Indonesian {document} extraction.
-Extract ALL text fields from this {image_label} image carefully and accurately.
-{notes}
-Return ONLY valid JSON with exactly these keys, as compact JSON on a single line
-(no indentation, no newlines, no markdown, no explanation). Use "" for {empty_when} fields:
-{template}"""
 
 
 def parse_fields(raw: str, data_model: type[DataModel]) -> DataModel:
