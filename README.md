@@ -19,6 +19,7 @@ Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas I
 - [Quick start](#quick-start)
 - [Arsitektur](#arsitektur)
 - [Field yang diekstrak](#field-yang-diekstrak)
+- [Prompt & batasan output](#prompt--batasan-output)
 - [Prasyarat & instalasi](#prasyarat)
 - [Menjalankan](#menjalankan-production-mode-vllm)
 - [Docker](#docker)
@@ -83,7 +84,7 @@ flowchart LR
 Poin penting:
 - **vLLM hanya listen di `127.0.0.1`** — tidak bisa diakses dari luar server; hanya API (port 8070) yang terekspos.
 - **vLLM mem-batch request bersamaan**, jadi beberapa request KTP/NPWP sekaligus selesai hampir secepat satu request.
-- **Structured output:** vLLM dipaksa menghasilkan JSON sesuai schema dokumen, jadi output selalu JSON valid.
+- **Structured output:** vLLM dipaksa menghasilkan JSON sesuai schema dokumen, jadi output selalu JSON valid, semua key selalu ada, dan field seperti `JENIS_KELAMIN` atau `NIK` hanya bisa berisi nilai yang valid (lihat [Prompt & batasan output](#prompt--batasan-output)).
 - Mode alternatif `hf` memuat model langsung di proses API (tanpa vLLM) — lihat [Mode HF](#mode-hf-tanpa-vllm).
 
 ### Alur request
@@ -148,20 +149,54 @@ Backend dipilih sekali saat startup lewat `INFERENCE_BACKEND`. Backend tidak tah
 
 ## Field yang diekstrak
 
-**KTP:** `NIK`, `NAMA`, `TTL`, `JENIS_KELAMIN`, `GOL_DARAH`, `ALAMAT`, `RT_RW`, `KEL_DESA`, `KECAMATAN`, `AGAMA`, `STATUS_PERKAWINAN`, `PEKERJAAN`, `KEWARGANEGARAAN`, `BERLAKU_HINGGA`
+**KTP:**
+
+| Field | Keterangan | Nilai yang diizinkan (mode vLLM) |
+|---|---|---|
+| `NIK` | NIK di bawah header | Tepat 16 digit |
+| `NAMA` | Nama lengkap sesuai cetakan | Bebas |
+| `TTL` | Tempat/Tgl Lahir, mis. `JAKARTA, 17-08-1990` | Bebas |
+| `JENIS_KELAMIN` | Jenis kelamin | `LAKI-LAKI`, `PEREMPUAN` |
+| `GOL_DARAH` | Nilai setelah "Gol. Darah" di baris Jenis Kelamin | `A`, `B`, `AB`, `O` (boleh dengan `+`/`-`), `-` |
+| `ALAMAT` | Baris "Alamat" saja, tanpa RT/RW, kelurahan, kecamatan | Bebas |
+| `RT_RW` | Mis. `006/005` (tanpa spasi) | `N/N` s.d. `NNN/NNN` |
+| `KEL_DESA` | Baris "Kel/Desa" | Bebas |
+| `KECAMATAN` | Baris "Kecamatan" (bukan kabupaten/kota di header) | Bebas |
+| `AGAMA` | Baris "Agama" | Bebas |
+| `STATUS_PERKAWINAN` | Status perkawinan | `BELUM KAWIN`, `KAWIN`, `CERAI HIDUP`, `CERAI MATI` |
+| `PEKERJAAN` | Pekerjaan sesuai cetakan | Bebas |
+| `KEWARGANEGARAAN` | Biasanya `WNI` | Bebas |
+| `BERLAKU_HINGGA` | Baris "Berlaku Hingga" (bukan tanggal terbit di bawah foto) | Bebas |
 
 **NPWP:**
 
-| Field | Keterangan |
-|---|---|
-| `NPWP` | Nomor NPWP sesuai cetakan (format lama `01.234.567.8-901.000` atau 16 digit) |
-| `NIK` | NIK 16 digit jika tercetak di kartu, selain itu `""` |
-| `NAMA` | Nama wajib pajak |
-| `ALAMAT` | Alamat lengkap |
-| `KPP` | Kantor Pelayanan Pajak penerbit |
-| `TANGGAL_TERDAFTAR` | Tanggal terdaftar sesuai cetakan |
+| Field | Keterangan | Nilai yang diizinkan (mode vLLM) |
+|---|---|---|
+| `NPWP` | Nomor NPWP sesuai cetakan | `NN.NNN.NNN.N-NNN.NNN` (kartu lama) atau 15–16 digit tanpa pemisah |
+| `NAMA` | Nama wajib pajak (orang atau badan) | Bebas |
+| `NIK` | NIK jika tercetak di kartu, selain itu `""` | Tepat 16 digit |
+| `ALAMAT` | Alamat wajib pajak, semua baris digabung dengan spasi (tanpa nama KPP) | Bebas |
+| `KPP` | Kantor Pelayanan Pajak penerbit, mis. `KPP PRATAMA JAKARTA SETIABUDI SATU` | Bebas |
+| `TANGGAL_TERDAFTAR` | Tanggal terdaftar sesuai cetakan | Bebas |
 
-Field yang tidak terbaca dikembalikan sebagai string kosong.
+Field yang tidak terbaca dikembalikan sebagai string kosong `""` (selalu diizinkan, juga untuk field yang dibatasi).
+
+## Prompt & batasan output
+
+Setiap dokumen punya prompt sendiri di `ocr_service/prompts.py` (`KTP_PROMPT`, `NPWP_PROMPT`). Prompt menjelaskan tata letak kartu dan aturan tiap field, karena itulah sumber salah baca yang paling sering:
+
+- **KTP:** urutan baris di kartu disebutkan satu per satu. `Gol. Darah` sering kosong; tanpa penjelasan ini model mengisinya dengan nilai baris berikutnya sehingga `ALAMAT`, `RT_RW`, `KEL_DESA`, dst. ikut bergeser satu baris. Prompt juga menegaskan `BERLAKU_HINGGA` diambil dari baris "Berlaku Hingga", bukan dari kota/tanggal terbit di bawah foto.
+- **NPWP:** menjelaskan format nomor lama dan baru, memisahkan alamat wajib pajak dari nama KPP, dan melarang menyalin nomor NPWP ke `NIK`.
+- Keduanya meminta teks dibaca **persis sesuai cetakan** (tanpa koreksi ejaan) dan memberi petunjuk angka yang sering tertukar (`O`→`0`, `I`→`1`, `B`→`8`, `S`→`5`) untuk NIK/NPWP. Daftar key JSON di akhir prompt dibuat otomatis dari model data, jadi tidak bisa berbeda dari schema.
+
+Selain prompt, JSON schema yang dikirim ke vLLM (`DocumentType.json_schema` di `documents.py`) membatasi output saat decoding:
+
+- **Semua key wajib** (`required`), sehingga model tidak bisa melewatkan field.
+- **Enum/pattern** untuk field dengan nilai terbatas (kolom terakhir tabel di atas), didefinisikan dengan `_constrained(...)` di `schemas.py`. Contoh: huruf yang rusak di kartu tidak lagi menghasilkan `PEREMPUA-J`, karena model hanya bisa memilih `LAKI-LAKI`, `PEREMPUAN`, atau `""`.
+
+Batasan ini **hanya berlaku di mode vLLM**. Pydantic tidak memvalidasinya, jadi mode `hf` (tanpa constrained decoding) tetap mengembalikan apa pun yang dibaca model, bukan error.
+
+**Mengubah prompt:** edit `prompts.py`, lalu restart API saja (`screen -r ocr` → Ctrl-C → `INFERENCE_BACKEND=vllm python main.py`). vLLM tidak perlu di-restart. Sebaiknya uji dulu dengan beberapa foto asli dan bandingkan hasil sebelum/sesudah, karena perubahan kecil (mis. contoh `JL. MERDEKA` di prompt) bisa membuat model ikut "mengoreksi" teks seperti `JL KECAPI V` menjadi `JL. KECAPI V`.
 
 ## Prasyarat
 
@@ -425,7 +460,7 @@ backup/                 versi kode sebelumnya (untuk rollback)
 
 ### Menambah field atau jenis dokumen baru
 
-- **Field baru:** tambahkan di model data (`KTPData` / `NPWPData` di `schemas.py`), lalu tambahkan aturan field-nya di `prompts.py`. Daftar key JSON di prompt dan JSON schema vLLM ikut ter-update otomatis.
+- **Field baru:** tambahkan di model data (`KTPData` / `NPWPData` di `schemas.py`; pakai `_constrained(enum=...)` atau `_constrained(pattern=...)` jika nilainya terbatas), lalu tambahkan aturan field-nya di `prompts.py`. Daftar key JSON di prompt dan JSON schema vLLM ikut ter-update otomatis.
 - **Dokumen baru** (mis. SIM): buat `SIMData` + `SIMResponse` di `schemas.py` dan `SIM_PROMPT` di `prompts.py`, lalu daftarkan `DocumentType` baru di `documents.py` dan tambahkan ke `DOCUMENTS`. Endpoint `POST /extract/sim` otomatis tersedia setelah restart API (vLLM tidak perlu di-restart).
 
 ### Rollback
@@ -447,4 +482,6 @@ Lalu restart API. (`backup/ktp_ocr_package/` = versi package KTP-only sebelum di
 | vLLM: `No available memory for the cache blocks` | `VLLM_GPU_UTIL` terlalu kecil untuk bobot model (±7.5 GB); naikkan sedikit |
 | vLLM: `Could not find nvcc` | Pastikan `--enforce-eager` aktif (default di `run_vllm.sh`) |
 | Field salah baca pada foto buram/kecil | Naikkan `MAX_PIXELS` (API) dan `max_pixels` di `run_vllm.sh` |
+| Field KTP bergeser satu baris atau diambil dari tempat yang salah | Perjelas aturan field tersebut di `prompts.py`, lalu restart API (lihat [Prompt & batasan output](#prompt--batasan-output)) |
+| Field selalu `""` padahal terbaca jelas | Nilai di kartu tidak cocok dengan enum/pattern di `schemas.py` (mis. format NPWP baru). Longgarkan batasannya, lalu restart API |
 | `Address already in use` | Port dipakai proses lain: `ss -ltnp \| grep 807` |
