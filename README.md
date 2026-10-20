@@ -8,11 +8,13 @@ Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas I
 | NPWP | `POST /extract/npwp` |
 
 ```
-                              ┌──────────────────────────┐      ┌───────────────────────────┐
- client ── /extract/ktp  ──►  │ OCR API :8070            │ ───► │ vLLM (Qwen2.5-VL) :8071   │ ── GPU
- client ── /extract/npwp ──►  │ main.py (screen "ocr")   │      │ run_vllm.sh (screen vllm) │
-                              └──────────────────────────┘      └───────────────────────────┘
+                              ┌────────────────────────────┐      ┌─────────────────────────────┐
+ client ── /extract/ktp  ──►  │ OCR API :8070              │ ───► │ vLLM (Qwen2.5-VL) :8071     │ ── GPU
+ client ── /extract/npwp ──►  │ container ocr-qwen-api-1   │      │ container ocr-qwen-vllm-1   │
+                              └────────────────────────────┘      └─────────────────────────────┘
 ```
+
+Production berjalan dengan **Docker Compose** (`docker-compose.yml`). Setup lama dengan GNU screen masih bisa dipakai sebagai [alternatif tanpa Docker](#alternatif-setup-screen-tanpa-docker).
 
 ## Daftar isi
 
@@ -20,9 +22,8 @@ Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas I
 - [Arsitektur](#arsitektur)
 - [Field yang diekstrak](#field-yang-diekstrak)
 - [Prompt & batasan output](#prompt--batasan-output)
-- [Prasyarat & instalasi](#prasyarat)
-- [Menjalankan](#menjalankan-production-mode-vllm)
-- [Docker](#docker)
+- [Deployment: Docker Compose](#deployment-docker-compose)
+- [Alternatif: setup screen](#alternatif-setup-screen-tanpa-docker)
 - [Konfigurasi](#konfigurasi-api-environment-variable)
 - [API](#api)
 - [Struktur kode](#struktur-kode)
@@ -30,41 +31,35 @@ Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas I
 
 ## Quick start
 
-Instalasi sudah ada di server (`venv/`, `venv-vllm/`, `model/`). Untuk menyalakan semuanya (mis. setelah reboot):
+Image dan bobot model (`model/`) sudah ada di server. Container memakai restart policy `unless-stopped`, jadi setelah reboot server keduanya naik sendiri. Untuk menyalakan secara manual:
 
 ```bash
 cd /data/ocr-qwen
+docker compose up -d                # api baru start setelah vllm healthy (±1–5 menit)
+docker compose ps                   # kedua service harus "healthy", api punya PORTS 0.0.0.0:8070
 
-# 1. Server model (vLLM) — tunggu ±1 menit sampai siap
-screen -dmS vllm bash -c 'cd /data/ocr-qwen && ./run_vllm.sh 2>&1 | tee -a vllm.log'
-until curl -sf localhost:8071/health; do sleep 3; done; echo "vLLM ready"
-
-# 2. API
-screen -dmS ocr bash -c 'cd /data/ocr-qwen && source venv/bin/activate && INFERENCE_BACKEND=vllm python main.py; exec bash'
-
-# 3. Cek
+# Cek
 curl localhost:8070/health
 # {"status":"ok","backend":"vllm","model_loaded":true}
 curl -F "file=@ktp.jpg;type=image/jpeg" localhost:8070/extract/ktp
 ```
 
+Dari aplikasi lain: `http://10.168.105.11:8070/extract/ktp` dan `http://10.168.105.11:8070/extract/npwp`.
+
 ## Arsitektur
 
 ### Deployment
 
-Ada dua proses yang berjalan terpisah, masing-masing di GNU screen dan venv sendiri. API tidak memuat model; semua inference dikirim ke server vLLM, yang satu-satunya memakai GPU.
+Ada dua container dalam satu network compose. API tidak memuat model; semua inference dikirim ke container vLLM, yang satu-satunya memakai GPU.
 
 ```mermaid
 flowchart LR
     client(["Client / aplikasi lain"])
 
     subgraph host["Server GPU (COBS-GPUDMDEV01-1583211)"]
-        subgraph ocr["screen: ocr · venv/"]
-            api["OCR API (FastAPI)<br/>main.py · 0.0.0.0:8070<br/>±80 MB RAM, tanpa torch"]
-        end
-
-        subgraph vllm["screen: vllm · venv-vllm/"]
-            engine["vLLM server<br/>run_vllm.sh · 127.0.0.1:8071<br/>OpenAI-compatible API"]
+        subgraph net["compose network: ocr-qwen_default"]
+            api["api · ocr-api:latest<br/>main.py · port 8070 (dipublish)<br/>±80 MB RAM, tanpa torch"]
+            engine["vllm · vllm/vllm-openai:v0.31.0<br/>vllm:8071 (tidak dipublish)<br/>OpenAI-compatible API"]
         end
 
         weights[("model/<br/>Qwen2.5-VL-3B<br/>±7.5 GB")]
@@ -77,12 +72,12 @@ flowchart LR
 
     client -- "POST /extract/ktp<br/>POST /extract/npwp<br/>(multipart image)" --> api
     api -- "POST /v1/chat/completions<br/>gambar base64 + prompt + JSON schema" --> engine
-    engine -- "load saat startup" --> weights
+    engine -- "mount ./model read-only,<br/>load saat startup" --> weights
     engine --> vram
 ```
 
 Poin penting:
-- **vLLM hanya listen di `127.0.0.1`** — tidak bisa diakses dari luar server; hanya API (port 8070) yang terekspos.
+- **Port vLLM (8071) tidak dipublish** — hanya bisa diakses dari dalam network compose (`http://vllm:8071`); hanya API (port 8070) yang terekspos.
 - **vLLM mem-batch request bersamaan**, jadi beberapa request KTP/NPWP sekaligus selesai hampir secepat satu request.
 - **Structured output:** vLLM dipaksa menghasilkan JSON sesuai schema dokumen, jadi output selalu JSON valid, semua key selalu ada, dan field seperti `JENIS_KELAMIN` atau `NIK` hanya bisa berisi nilai yang valid (lihat [Prompt & batasan output](#prompt--batasan-output)).
 - Mode alternatif `hf` memuat model langsung di proses API (tanpa vLLM) — lihat [Mode HF](#mode-hf-tanpa-vllm).
@@ -196,15 +191,94 @@ Selain prompt, JSON schema yang dikirim ke vLLM (`DocumentType.json_schema` di `
 
 Batasan ini **hanya berlaku di mode vLLM**. Pydantic tidak memvalidasinya, jadi mode `hf` (tanpa constrained decoding) tetap mengembalikan apa pun yang dibaca model, bukan error.
 
-**Mengubah prompt:** edit `prompts.py`, lalu restart API saja (`screen -r ocr` → Ctrl-C → `INFERENCE_BACKEND=vllm python main.py`). vLLM tidak perlu di-restart. Sebaiknya uji dulu dengan beberapa foto asli dan bandingkan hasil sebelum/sesudah, karena perubahan kecil (mis. contoh `JL. MERDEKA` di prompt) bisa membuat model ikut "mengoreksi" teks seperti `JL KECAPI V` menjadi `JL. KECAPI V`.
+**Mengubah prompt:** edit `prompts.py`, lalu build ulang dan restart API saja: `docker compose up -d --build api`. Kode di-copy ke dalam image, jadi tanpa `--build` perubahan tidak terpakai. vLLM tidak perlu di-restart. Sebaiknya uji dulu dengan beberapa foto asli dan bandingkan hasil sebelum/sesudah, karena perubahan kecil (mis. contoh `JL. MERDEKA` di prompt) bisa membuat model ikut "mengoreksi" teks seperti `JL KECAPI V` menjadi `JL. KECAPI V`.
 
-## Prasyarat
+## Deployment: Docker Compose
+
+Setup production. Dua container didefinisikan di `docker-compose.yml`:
+
+| Service | Container | Image | Port | Keterangan |
+|---|---|---|---|---|
+| `api` | `ocr-qwen-api-1` | `ocr-api:latest`, dibangun dari `Dockerfile` (±260 MB) | `8070` (dipublish) | Mode vLLM, tanpa torch, user non-root, ada healthcheck |
+| `vllm` | `ocr-qwen-vllm-1` | `vllm/vllm-openai:v0.31.0` | `8071` (hanya di network compose) | Flag sama dengan `run_vllm.sh`; `model/` di-mount read-only |
+
+Keduanya memakai `restart: unless-stopped`, jadi ikut naik lagi setelah reboot server atau crash. `api` baru start setelah healthcheck `vllm` lolos (`depends_on: condition: service_healthy`).
+
+### Prasyarat
+
+- NVIDIA Container Toolkit (sudah terpasang di server ini).
+- Image `vllm/vllm-openai:v0.31.0` sudah di-pull. Docker root ada di `/var/lib/docker` (partisi `/`, sisa ±15 GB), jadi pantau ruang disk sebelum pull image versi lain.
+- Setup screen **tidak boleh jalan bersamaan**. Port 8070 bentrok, dan GPU tidak cukup untuk dua vLLM:
+  ```bash
+  screen -S ocr -X quit; screen -S vllm -X quit
+  ```
+
+### Menjalankan & menghentikan
+
+```bash
+cd /data/ocr-qwen
+docker compose up -d --build        # build image api (jika berubah) lalu start semua
+docker compose ps                   # kedua service harus "healthy"
+curl localhost:8070/health
+docker compose down                 # stop & hapus kedua container (image dan model tetap ada)
+```
+
+### Melihat status & log
+
+```bash
+docker compose ps                   # status + health; api harus punya PORTS 0.0.0.0:8070->8070
+docker compose logs -f api          # log API
+docker compose logs -f vllm         # log vLLM
+docker compose logs --tail 100 vllm # 100 baris terakhir
+curl localhost:8070/health          # status API + koneksi ke vLLM
+nvidia-smi                          # pemakaian GPU (vLLM ±10 GB)
+```
+
+### Restart & update
+
+| Yang di-restart | Cara | Dampak |
+|---|---|---|
+| API setelah ubah kode/prompt | `docker compose up -d --build api` | Downtime beberapa detik |
+| API saja, tanpa perubahan kode | `docker compose restart api` | Downtime beberapa detik |
+| API dibuat ulang (mis. container kehilangan network) | `docker compose up -d --force-recreate --no-deps api` | Downtime beberapa detik |
+| vLLM (mis. ubah flag di `docker-compose.yml`) | `docker compose up -d vllm` | Inference tidak tersedia ±1–5 menit |
+| Semua | `docker compose down && docker compose up -d` | Inference tidak tersedia ±1–5 menit |
+
+`--no-deps` membuat container vLLM tidak ikut di-restart, sehingga model tidak perlu dimuat ulang.
+
+### Variabel opsional
+
+Diset di shell atau file `.env` di folder ini (saat ini tidak ada `.env`, semua memakai default):
+
+| Variable | Default | Keterangan |
+|---|---|---|
+| `API_PORT` | `8070` | Port host untuk API |
+| `VLLM_GPU_UTIL` | `0.40` | Porsi memori GPU untuk vLLM |
+| `VLLM_EAGER` | `enforce-eager` | `no-enforce-eager` untuk mencoba CUDA graphs (lebih cepat, butuh memori lebih) |
+
+Variabel API lain (lihat [Konfigurasi](#konfigurasi-api-environment-variable)) ditambahkan di bagian `environment:` service `api`.
+
+### Hanya image API
+
+Image API bisa dipakai sendiri dengan vLLM yang jalan di host (setup screen):
+
+```bash
+docker build -t ocr-api:latest .
+docker run -d --name ocr-api --network host \
+  -e VLLM_URL=http://127.0.0.1:8071 -e PORT=8070 ocr-api:latest
+```
+
+## Alternatif: setup screen (tanpa Docker)
+
+Setup production sebelum Docker Compose: dua proses di GNU screen, masing-masing dengan venv sendiri. Matikan compose dulu (`docker compose down`) sebelum memakai cara ini.
+
+### Prasyarat
 
 - Python 3.10, GPU NVIDIA (server ini: L40S-24Q vGPU, 24 GB, **dipakai bersama**)
 - Bobot model di `model/` (±7.5 GB). Jika folder kosong, mode `hf` akan mengunduh `Qwen/Qwen2.5-VL-3B-Instruct` dari HuggingFace dan menyimpannya di sini.
 - [`uv`](https://github.com/astral-sh/uv) (sudah terpasang di `~/.local/bin/uv`)
 
-## Instalasi
+### Instalasi
 
 Hanya perlu sekali (sudah dilakukan di server ini). Ada **dua venv terpisah** supaya versi torch milik vLLM tidak bentrok dengan API:
 
@@ -220,9 +294,9 @@ uv venv venv-vllm --python 3.10
 VIRTUAL_ENV=venv-vllm uv pip install vllm
 ```
 
-## Menjalankan (production: mode vLLM)
+### Menjalankan
 
-Urutan: **vLLM dulu, baru API.** (Ringkasannya ada di [Quick start](#quick-start).)
+Urutan: **vLLM dulu, baru API.**
 
 ```bash
 # 1. Server vLLM di screen "vllm" (log juga ditulis ke vllm.log)
@@ -241,7 +315,7 @@ INFERENCE_BACKEND=vllm python main.py
 curl localhost:8070/health
 ```
 
-### Melihat status & log
+#### Melihat status & log
 
 ```bash
 screen -ls                         # harus ada: vllm, ocr
@@ -251,15 +325,15 @@ curl localhost:8070/health         # status API + koneksi ke vLLM
 nvidia-smi                         # pemakaian GPU (vLLM ±10 GB)
 ```
 
-### Restart
+#### Restart
 
 | Yang di-restart | Cara | Dampak |
 |---|---|---|
 | API saja (mis. setelah ubah kode) | `screen -r ocr` → Ctrl-C → `INFERENCE_BACKEND=vllm python main.py` | Downtime beberapa detik |
 | vLLM | `screen -S vllm -X quit`, lalu langkah 1–2 di atas | Semua endpoint tidak bisa inference ±1 menit |
-| Semua (mis. setelah reboot) | [Quick start](#quick-start) | — |
+| Semua (mis. setelah reboot) | Langkah 1–4 di atas | — |
 
-### Mode HF (tanpa vLLM)
+#### Mode HF (tanpa vLLM)
 
 Model dimuat langsung di proses API. Lebih sederhana, tapi request diproses satu per satu dan tidak ada structured output.
 
@@ -269,69 +343,13 @@ pip install -r requirements-hf.txt   # sekali saja: torch/transformers tidak ter
 INFERENCE_BACKEND=hf python main.py
 ```
 
-## Docker
+## Catatan server vLLM
 
-Alternatif dari setup screen di atas: dua container lewat Docker Compose.
+Flag vLLM di `docker-compose.yml` (service `vllm`) sama dengan di `run_vllm.sh`. Jika mengubah salah satunya, samakan yang lain.
 
-| Service | Image | Port | Keterangan |
-|---|---|---|---|
-| `api` | `ocr-api:latest`, dibangun dari `Dockerfile` (±260 MB) | `8070` (dipublish) | Mode vLLM, tanpa torch, user non-root, ada healthcheck |
-| `vllm` | `vllm/vllm-openai:v0.31.0` (±9 GB terkompresi) | `8071` (hanya di network compose) | Flag sama dengan `run_vllm.sh`; `model/` di-mount read-only |
-
-```mermaid
-flowchart LR
-    client(["Client"]) -- ":8070" --> api["api<br/>ocr-api:latest"]
-    subgraph net["compose network"]
-        api -- "http://vllm:8071" --> vllm["vllm<br/>vllm/vllm-openai:v0.31.0"]
-    end
-    vllm -- "mount read-only" --> model[("./model")]
-    vllm --> gpu["GPU"]
-```
-
-### Prasyarat
-
-- NVIDIA Container Toolkit (sudah terpasang di server ini).
-- **Ruang disk Docker ±25 GB** untuk image vLLM. Di server ini Docker root ada di `/` yang sisa ±14 GB, jadi **tidak cukup**. Kosongkan ruang atau pindahkan `data-root` Docker ke `/data` dulu.
-- Hentikan setup screen sebelum menjalankan compose. Port 8070 bentrok, dan GPU tidak cukup untuk dua vLLM:
-  ```bash
-  screen -S ocr -X quit; screen -S vllm -X quit
-  ```
-
-### Menjalankan
-
-```bash
-cd /data/ocr-qwen
-docker compose up -d --build        # api baru start setelah vllm healthy (±1–5 menit)
-docker compose ps                   # kedua service harus "healthy"
-curl localhost:8070/health
-docker compose logs -f api          # log API
-docker compose logs -f vllm         # log vLLM
-docker compose down                 # stop semua
-```
-
-Variabel opsional (shell atau file `.env`):
-
-| Variable | Default | Keterangan |
-|---|---|---|
-| `API_PORT` | `8070` | Port host untuk API |
-| `VLLM_GPU_UTIL` | `0.40` | Porsi memori GPU untuk vLLM |
-| `VLLM_EAGER` | `enforce-eager` | `no-enforce-eager` untuk mencoba CUDA graphs (lebih cepat, butuh memori lebih) |
-
-### Hanya image API
-
-Image API bisa dipakai sendiri dengan vLLM yang sudah jalan di host (setup screen):
-
-```bash
-docker build -t ocr-api:latest .
-docker run -d --name ocr-api --network host \
-  -e VLLM_URL=http://127.0.0.1:8071 -e PORT=8070 ocr-api:latest
-```
-
-## Catatan server vLLM (`run_vllm.sh`)
-
-- Memakai ±10 GB GPU (`--gpu-memory-utilization 0.40`). Ubah dengan `VLLM_GPU_UTIL=0.35 ./run_vllm.sh`.
-- Berjalan dengan `--enforce-eager` karena server ini **tidak punya `nvcc`** (CUDA toolkit). Tanpa flag itu vLLM crash saat startup dengan `Could not find nvcc`. Jika CUDA toolkit sudah dipasang, mode lebih cepat bisa dicoba dengan `VLLM_EXTRA_ARGS="" ./run_vllm.sh`.
-- Hanya listen di `127.0.0.1` — tidak diekspos ke jaringan.
+- Memakai ±10 GB GPU (`--gpu-memory-utilization 0.40`). Ubah dengan `VLLM_GPU_UTIL=0.35` (compose: di `.env`, lalu `docker compose up -d vllm`; screen: `VLLM_GPU_UTIL=0.35 ./run_vllm.sh`).
+- Berjalan dengan `--enforce-eager` karena server ini **tidak punya `nvcc`** (CUDA toolkit). Tanpa flag itu vLLM crash saat startup dengan `Could not find nvcc`. Mode CUDA graphs yang lebih cepat bisa dicoba dengan `VLLM_EAGER=no-enforce-eager` (compose) atau `VLLM_EXTRA_ARGS="" ./run_vllm.sh` (screen).
+- Tidak diekspos ke jaringan: di compose port 8071 tidak dipublish, di setup screen hanya listen di `127.0.0.1`.
 - Maksimal 8 request diproses bersamaan (`--max-num-seqs 8`); sisanya antre di vLLM.
 - Resolusi gambar dibatasi ±1 MP (`--mm-processor-kwargs`). Ubah bersamaan dengan `MAX_PIXELS` di API.
 
@@ -339,10 +357,10 @@ docker run -d --name ocr-api --network host \
 
 | Variable | Default | Keterangan |
 |---|---|---|
-| `INFERENCE_BACKEND` | `vllm` | `vllm` (production) atau `hf` |
+| `INFERENCE_BACKEND` | `vllm` | `vllm` (production) atau `hf` (tidak didukung image Docker, karena tanpa torch) |
 | `HOST` | `0.0.0.0` | Alamat bind API |
 | `PORT` | `8070` | Port API |
-| `VLLM_URL` | `http://127.0.0.1:8071` | Alamat server vLLM |
+| `VLLM_URL` | `http://127.0.0.1:8071` | Alamat server vLLM (di compose: `http://vllm:8071`) |
 | `VLLM_MODEL` | `qwen-ktp` | Nama model di server vLLM (`--served-model-name`) |
 | `VLLM_TIMEOUT` | `120` | Timeout request ke vLLM (detik) |
 | `MIN_PIXELS` / `MAX_PIXELS` | `200704` / `1003520` | Batas resolusi gambar. Naikkan `MAX_PIXELS` jika teks kecil salah baca |
@@ -437,9 +455,9 @@ Bottleneck utama adalah kecepatan generate token di vGPU, bukan ukuran gambar.
 
 ```
 main.py                 entry point (python main.py / uvicorn main:app)
-run_vllm.sh             server vLLM (setup screen)
+docker-compose.yml      deployment production: api + vllm
 Dockerfile              image API (mode vLLM)
-docker-compose.yml      api + vllm
+run_vllm.sh             server vLLM (setup screen, alternatif)
 requirements.txt        dependency dasar (mode vLLM, dipakai Dockerfile)
 requirements-hf.txt     + torch/transformers untuk mode hf
 model/                  bobot Qwen2.5-VL-3B (±7.5 GB)
@@ -461,7 +479,7 @@ backup/                 versi kode sebelumnya (untuk rollback)
 ### Menambah field atau jenis dokumen baru
 
 - **Field baru:** tambahkan di model data (`KTPData` / `NPWPData` di `schemas.py`; pakai `_constrained(enum=...)` atau `_constrained(pattern=...)` jika nilainya terbatas), lalu tambahkan aturan field-nya di `prompts.py`. Daftar key JSON di prompt dan JSON schema vLLM ikut ter-update otomatis.
-- **Dokumen baru** (mis. SIM): buat `SIMData` + `SIMResponse` di `schemas.py` dan `SIM_PROMPT` di `prompts.py`, lalu daftarkan `DocumentType` baru di `documents.py` dan tambahkan ke `DOCUMENTS`. Endpoint `POST /extract/sim` otomatis tersedia setelah restart API (vLLM tidak perlu di-restart).
+- **Dokumen baru** (mis. SIM): buat `SIMData` + `SIMResponse` di `schemas.py` dan `SIM_PROMPT` di `prompts.py`, lalu daftarkan `DocumentType` baru di `documents.py` dan tambahkan ke `DOCUMENTS`. Endpoint `POST /extract/sim` otomatis tersedia setelah `docker compose up -d --build api` (vLLM tidak perlu di-restart).
 
 ### Rollback
 
@@ -471,17 +489,19 @@ Versi lama hanya punya endpoint KTP (tanpa `/extract/npwp`).
 cp backup/main_single_file_vllm.py main.py   # versi 1 file dengan dukungan vLLM
 cp backup/main_original_hf.py main.py        # versi asli (HF saja — matikan vLLM dulu)
 ```
-Lalu restart API. (`backup/ktp_ocr_package/` = versi package KTP-only sebelum digabung dengan NPWP.)
+Lalu `docker compose up -d --build api`. Versi HF tidak bisa jalan di image Docker (tanpa torch); pakai [setup screen](#mode-hf-tanpa-vllm). (`backup/ktp_ocr_package/` = versi package KTP-only sebelum digabung dengan NPWP.)
 
 ## Troubleshooting
 
 | Gejala | Penyebab / solusi |
 |---|---|
-| `/health` → `degraded` | vLLM mati. Cek `screen -r vllm` / `tail vllm.log`, lalu jalankan ulang |
+| `/health` → `degraded` | vLLM mati atau belum siap. Cek `docker compose ps` dan `docker compose logs --tail 100 vllm`, lalu `docker compose up -d vllm` |
+| API tidak bisa diakses di port 8070, `docker compose ps` menunjukkan api `unhealthy` dengan kolom PORTS kosong, log API: `vLLM backend at http://vllm:8071 not reachable yet` | Container api kehilangan network compose (tidak punya IP, nama `vllm` tidak bisa di-resolve). Pernah terjadi setelah container lama di-start ulang. Buat ulang: `docker compose up -d --force-recreate --no-deps api` |
+| `docker compose up`: `port is already allocated` | Setup screen masih jalan. `screen -S ocr -X quit; screen -S vllm -X quit` |
 | vLLM: `Free memory on device ... is less than desired` | GPU dipakai proses lain (`nvidia-smi`). Turunkan `VLLM_GPU_UTIL` atau hentikan proses lain |
 | vLLM: `No available memory for the cache blocks` | `VLLM_GPU_UTIL` terlalu kecil untuk bobot model (±7.5 GB); naikkan sedikit |
-| vLLM: `Could not find nvcc` | Pastikan `--enforce-eager` aktif (default di `run_vllm.sh`) |
-| Field salah baca pada foto buram/kecil | Naikkan `MAX_PIXELS` (API) dan `max_pixels` di `run_vllm.sh` |
-| Field KTP bergeser satu baris atau diambil dari tempat yang salah | Perjelas aturan field tersebut di `prompts.py`, lalu restart API (lihat [Prompt & batasan output](#prompt--batasan-output)) |
-| Field selalu `""` padahal terbaca jelas | Nilai di kartu tidak cocok dengan enum/pattern di `schemas.py` (mis. format NPWP baru). Longgarkan batasannya, lalu restart API |
-| `Address already in use` | Port dipakai proses lain: `ss -ltnp \| grep 807` |
+| vLLM: `Could not find nvcc` | Pastikan `--enforce-eager` aktif (default di `docker-compose.yml` dan `run_vllm.sh`) |
+| Field salah baca pada foto buram/kecil | Naikkan `MAX_PIXELS` (API) dan `max_pixels` di `--mm-processor-kwargs` vLLM (`docker-compose.yml` / `run_vllm.sh`) |
+| Field KTP bergeser satu baris atau diambil dari tempat yang salah | Perjelas aturan field tersebut di `prompts.py`, lalu `docker compose up -d --build api` (lihat [Prompt & batasan output](#prompt--batasan-output)) |
+| Field selalu `""` padahal terbaca jelas | Nilai di kartu tidak cocok dengan enum/pattern di `schemas.py` (mis. format NPWP baru). Longgarkan batasannya, lalu `docker compose up -d --build api` |
+| `Address already in use` (setup screen) | Port dipakai proses lain, mis. container compose: `docker compose ps`, `ss -ltnp \| grep 807` |
