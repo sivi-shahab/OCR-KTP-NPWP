@@ -144,7 +144,7 @@ Pekerjaan CPU ringan: decode/resize gambar (Pillow), encode base64, tokenisasi, 
 
 | Port | Bind | Keterangan |
 |---|---|---|
-| 8000 | `0.0.0.0` | OCR API — satu-satunya yang perlu dibuka ke client |
+| 8070 | `0.0.0.0` | OCR API — satu-satunya yang perlu dibuka ke client |
 | 8071 | `127.0.0.1` | vLLM — internal saja |
 
 Bandwidth: upload maks 10 MB per request; gambar yang dikirim ke vLLM sudah di-resize ke ±1 MP (biasanya < 500 KB base64) lewat loopback. Akses internet hanya diperlukan saat instalasi (pip/uv, image Docker, unduh model dari HuggingFace).
@@ -160,6 +160,6 @@ Jika service ini dipindah ke server/VM khusus:
 | RAM | 32 GB |
 | Disk | 100 GB SSD (OS ±30 GB + service 50–60 GB + cadangan) |
 | OS | Ubuntu 22.04/24.04 LTS, driver NVIDIA terbaru, CUDA toolkit terpasang |
-| Jaringan | Port 8000 terbuka untuk client internal |
+| Jaringan | Port 8070 terbuka untuk client internal |
 
 Dengan GPU khusus, `--gpu-memory-utilization` bisa dinaikkan (mis. 0.85) dan `--max-num-seqs` diperbesar untuk throughput lebih tinggi.

@@ -1,13 +1,13 @@
 # OCR API (KTP & NPWP) + vLLM model server.
 #
 #   docker compose up -d --build
-#   curl localhost:8000/health
+#   curl localhost:8070/health
 #
 # Only the API is published. vLLM is reachable only inside this compose network,
 # like the 127.0.0.1-only setup of run_vllm.sh.
 #
 # Note: stop the screen-based services first (screen sessions "ocr" and "vllm");
-# they use the same port 8000 and the GPU is too small for two vLLM instances.
+# they use the same port 8070 and the GPU is too small for two vLLM instances.
 
 services:
   vllm:
@@ -49,7 +49,7 @@ services:
     image: ocr-api:latest
     restart: unless-stopped
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-8070}:8070"
     environment:
       INFERENCE_BACKEND: vllm
       VLLM_URL: http://vllm:8071
