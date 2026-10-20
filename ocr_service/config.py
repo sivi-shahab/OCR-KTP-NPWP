@@ -26,7 +26,7 @@ class Settings:
     vllm_timeout: float = 120.0
 
     host: str = "0.0.0.0"
-    port: int = 8070
+    port: int = 8000
 
     @classmethod
     def from_env(cls) -> "Settings":
