@@ -367,7 +367,9 @@ Flag vLLM di `docker-compose.yml` (service `vllm`) sama dengan di `run_vllm.sh`.
 
 ## API
 
-Dokumentasi interaktif (Swagger): `http://<host>:8070/docs`
+Dokumentasi interaktif (Swagger): `http://<host>:8070/docs`. Spec mentahnya ada di `/openapi.json` (bisa diimpor ke Postman).
+
+Swagger UI disajikan langsung oleh API dari `ocr_service/static/swagger-ui/` (swagger-ui-dist 5.17.14), bukan dari CDN, jadi tetap tampil di jaringan tanpa akses internet. `/redoc` dimatikan karena ReDoc hanya tersedia lewat CDN.
 
 Semua endpoint `POST /extract/{dokumen}` menerima upload gambar (`image/jpeg`, `image/png`, `image/webp`, maks 10 MB) sebagai multipart field `file`, dan mengembalikan format yang sama: `{"success", "data", "raw_output"}`.
 
@@ -469,6 +471,7 @@ ocr_service/
 ├── extraction.py       parsing output model
 ├── images.py           decode & resize gambar
 ├── api.py              route FastAPI (1 endpoint per dokumen) & mapping error HTTP
+├── static/swagger-ui/   file Swagger UI untuk /docs (tanpa CDN)
 └── backends/
     ├── base.py         interface InferenceBackend
     ├── hf.py           transformers (in-process)

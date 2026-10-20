@@ -2,7 +2,11 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from .backends import InferenceBackend, create_backend
@@ -13,6 +17,10 @@ from .images import ALLOWED_CONTENT_TYPES, InvalidImageError, decode_image, limi
 from .schemas import HealthResponse
 
 logger = logging.getLogger(__name__)
+
+# Swagger UI (swagger-ui-dist 5.17.14) is served from here instead of FastAPI's default
+# CDN, so /docs also works for clients without internet access.
+SWAGGER_UI_DIR = Path(__file__).parent / "static" / "swagger-ui"
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -30,8 +38,11 @@ def create_app(settings: Settings) -> FastAPI:
                     "(KTP, NPWP) using Qwen2.5-VL.",
         version="2.0.0",
         lifespan=lifespan,
+        docs_url=None,
+        redoc_url=None,
     )
     app.state.settings = settings
+    _add_docs_routes(app)
 
     for document in DOCUMENTS:
         _add_extract_route(app, document, settings)
@@ -47,6 +58,25 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     return app
+
+
+def _add_docs_routes(app: FastAPI) -> None:
+    app.mount("/static/swagger-ui", StaticFiles(directory=SWAGGER_UI_DIR), name="swagger-ui")
+
+    @app.get("/docs", include_in_schema=False)
+    async def swagger_ui():
+        return get_swagger_ui_html(
+            openapi_url=app.openapi_url,
+            title=f"{app.title} - Swagger UI",
+            oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+            swagger_js_url="/static/swagger-ui/swagger-ui-bundle.js",
+            swagger_css_url="/static/swagger-ui/swagger-ui.css",
+            swagger_favicon_url="/static/swagger-ui/favicon-32x32.png",
+        )
+
+    @app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)
+    async def swagger_ui_redirect():
+        return get_swagger_ui_oauth2_redirect_html()
 
 
 def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings) -> None:
