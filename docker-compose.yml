@@ -54,6 +54,8 @@ services:
       INFERENCE_BACKEND: vllm
       VLLM_URL: http://vllm:8071
       VLLM_MODEL: qwen-ktp
+      # Comma-separated keys for the X-API-Key header, set in .env (gitignored).
+      API_KEYS: ${API_KEYS:-}
     depends_on:
       vllm:
         condition: service_healthy

@@ -2,12 +2,14 @@ import asyncio
 import base64
 import binascii
 import logging
+import secrets
 from contextlib import asynccontextmanager
 
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile
 from fastapi.openapi.docs import get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
+from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
@@ -23,6 +25,23 @@ logger = logging.getLogger(__name__)
 # Swagger UI (swagger-ui-dist 5.17.14) is served from here instead of FastAPI's default
 # CDN, so /docs also works for clients without internet access.
 SWAGGER_UI_DIR = Path(__file__).parent / "static" / "swagger-ui"
+
+# auto_error=False so a missing header returns our 401 instead of FastAPI's 403.
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _api_key_dependency(settings: Settings):
+    async def verify_api_key(api_key: str | None = Security(api_key_header)) -> None:
+        if not settings.api_keys:
+            return
+        if not api_key or not any(secrets.compare_digest(api_key, key) for key in settings.api_keys):
+            raise HTTPException(
+                status_code=401,
+                detail="Missing or invalid X-API-Key header.",
+                headers={"WWW-Authenticate": "ApiKey"},
+            )
+
+    return verify_api_key
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -46,6 +65,8 @@ def create_app(settings: Settings) -> FastAPI:
     app.state.settings = settings
     _add_docs_routes(app)
 
+    if not settings.api_keys:
+        logger.warning("API_KEYS is not set: /extract/* endpoints are open without authentication")
     for document in DOCUMENTS:
         _add_extract_route(app, document, settings)
 
@@ -82,6 +103,8 @@ def _add_docs_routes(app: FastAPI) -> None:
 
 
 def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings) -> None:
+    dependencies = [Depends(_api_key_dependency(settings))]
+
     async def run(request: Request, image: Image.Image):
         backend: InferenceBackend = request.app.state.backend
         try:
@@ -123,6 +146,7 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
         summary=f"Extract {document.label} fields from an uploaded image",
         tags=[f"{document.label} OCR"],
         name=f"extract_{document.key}",
+        dependencies=dependencies,
     )
     app.add_api_route(
         f"/extract/{document.key}/base64",
@@ -132,6 +156,7 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
         summary=f"Extract {document.label} fields from a base64-encoded image (JSON body)",
         tags=[f"{document.label} OCR"],
         name=f"extract_{document.key}_base64",
+        dependencies=dependencies,
     )
 
 

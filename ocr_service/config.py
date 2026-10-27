@@ -28,6 +28,10 @@ class Settings:
     host: str = "0.0.0.0"
     port: int = 8070
 
+    # Keys accepted in the X-API-Key header of /extract/*. Several keys allow rotating
+    # without downtime. Empty disables authentication.
+    api_keys: tuple[str, ...] = ()
+
     @classmethod
     def from_env(cls) -> "Settings":
         settings = cls(
@@ -39,6 +43,7 @@ class Settings:
             vllm_timeout=float(os.getenv("VLLM_TIMEOUT", cls.vllm_timeout)),
             host=os.getenv("HOST", cls.host),
             port=int(os.getenv("PORT", cls.port)),
+            api_keys=tuple(k.strip() for k in os.getenv("API_KEYS", "").split(",") if k.strip()),
         )
         if settings.backend not in BACKENDS:
             raise ValueError(f"INFERENCE_BACKEND must be one of {BACKENDS}, got {settings.backend!r}")

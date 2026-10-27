@@ -41,8 +41,10 @@ docker compose ps                   # kedua service harus "healthy", api punya P
 # Cek
 curl localhost:8070/health
 # {"status":"ok","backend":"vllm","model_loaded":true}
-curl -F "file=@ktp.jpg;type=image/jpeg" localhost:8070/extract/ktp
+curl -H "X-API-Key: <key>" -F "file=@ktp.jpg;type=image/jpeg" localhost:8070/extract/ktp
 ```
+
+Key ada di `API_KEYS` dalam file `.env` (lihat [Autentikasi](#autentikasi-x-api-key)).
 
 Dari aplikasi lain: `http://10.168.105.11:8070/extract/ktp` dan `http://10.168.105.11:8070/extract/npwp`.
 
@@ -248,10 +250,11 @@ nvidia-smi                          # pemakaian GPU (vLLM ±10 GB)
 
 ### Variabel opsional
 
-Diset di shell atau file `.env` di folder ini (saat ini tidak ada `.env`, semua memakai default):
+Diset di shell atau file `.env` di folder ini. `.env` di server berisi `API_KEYS`; variabel lain memakai default:
 
 | Variable | Default | Keterangan |
 |---|---|---|
+| `API_KEYS` | kosong | Key untuk header `X-API-Key`, dipisah koma. Kosong = autentikasi mati |
 | `API_PORT` | `8070` | Port host untuk API |
 | `VLLM_GPU_UTIL` | `0.40` | Porsi memori GPU untuk vLLM |
 | `VLLM_EAGER` | `enforce-eager` | `no-enforce-eager` untuk mencoba CUDA graphs (lebih cepat, butuh memori lebih) |
@@ -364,6 +367,7 @@ Flag vLLM di `docker-compose.yml` (service `vllm`) sama dengan di `run_vllm.sh`.
 | `VLLM_MODEL` | `qwen-ktp` | Nama model di server vLLM (`--served-model-name`) |
 | `VLLM_TIMEOUT` | `120` | Timeout request ke vLLM (detik) |
 | `MIN_PIXELS` / `MAX_PIXELS` | `200704` / `1003520` | Batas resolusi gambar. Naikkan `MAX_PIXELS` jika teks kecil salah baca |
+| `API_KEYS` | kosong | Key yang diterima di header `X-API-Key`, dipisah koma. Kosong = `/extract/*` terbuka tanpa autentikasi (ada warning di log) |
 
 ## API
 
@@ -382,15 +386,24 @@ Contoh base64 (berlaku juga untuk `/extract/npwp/base64`):
 
 ```bash
 (printf '{"image": "'; base64 -w0 ktp.jpg; printf '"}') > body.json
-curl -H "Content-Type: application/json" -d @body.json http://localhost:8070/extract/ktp/base64
+curl -H "X-API-Key: <key>" -H "Content-Type: application/json" -d @body.json http://localhost:8070/extract/ktp/base64
 ```
 
 Di Swagger (`/docs`), endpoint multipart menampilkan tombol **Choose File** untuk upload. Agar tombol itu muncul di Swagger UI 5.17, field `file` diberi `format: binary` secara eksplisit.
 
+### Autentikasi (`X-API-Key`)
+
+Semua endpoint `/extract/*` wajib mengirim header `X-API-Key` berisi salah satu key di `API_KEYS`. Tanpa header atau dengan key salah, API membalas `401`. `/health` dan `/docs` tetap terbuka (healthcheck Docker memakai `/health`).
+
+- Key disimpan di `/data/ocr-qwen/.env` (permission `600`, masuk `.gitignore`, tidak pernah di-commit), lalu diteruskan ke container lewat `docker-compose.yml`.
+- Di Swagger: klik **Authorize**, isi key, lalu **Try it out** seperti biasa.
+- Rotasi key tanpa downtime: tambahkan key baru di belakang (`API_KEYS=lama,baru`), `docker compose up -d api`, pindahkan semua client ke key baru, lalu hapus key lama dan jalankan `docker compose up -d api` lagi.
+- Membuat key baru: `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`.
+
 ### `POST /extract/ktp`
 
 ```bash
-curl -F "file=@ktp.jpg;type=image/jpeg" http://localhost:8070/extract/ktp
+curl -H "X-API-Key: <key>" -F "file=@ktp.jpg;type=image/jpeg" http://localhost:8070/extract/ktp
 ```
 
 Response:
@@ -420,7 +433,7 @@ Response:
 ### `POST /extract/npwp`
 
 ```bash
-curl -F "file=@npwp.jpg;type=image/jpeg" http://localhost:8070/extract/npwp
+curl -H "X-API-Key: <key>" -F "file=@npwp.jpg;type=image/jpeg" http://localhost:8070/extract/npwp
 ```
 
 Response:
@@ -445,6 +458,7 @@ Response:
 |---|---|
 | 200 | Berhasil |
 | 400 | File bukan gambar yang valid, atau field `image` bukan base64 yang valid |
+| 401 | Header `X-API-Key` tidak ada atau salah |
 | 404 | Jenis dokumen tidak dikenal (mis. `/extract/sim`) |
 | 413 | File lebih dari 10 MB |
 | 415 | Content-type bukan JPEG/PNG/WebP |
