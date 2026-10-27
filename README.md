@@ -371,7 +371,21 @@ Dokumentasi interaktif (Swagger): `http://<host>:8070/docs`. Spec mentahnya ada 
 
 Swagger UI disajikan langsung oleh API dari `ocr_service/static/swagger-ui/` (swagger-ui-dist 5.17.14), bukan dari CDN, jadi tetap tampil di jaringan tanpa akses internet. `/redoc` dimatikan karena ReDoc hanya tersedia lewat CDN.
 
-Semua endpoint `POST /extract/{dokumen}` menerima upload gambar (`image/jpeg`, `image/png`, `image/webp`, maks 10 MB) sebagai multipart field `file`, dan mengembalikan format yang sama: `{"success", "data", "raw_output"}`.
+Setiap dokumen punya dua endpoint dengan response yang sama (`{"success", "data", "raw_output"}`). Gambar boleh JPEG, PNG, atau WebP, maksimal 10 MB:
+
+| Endpoint | Body |
+|---|---|
+| `POST /extract/{dokumen}` | `multipart/form-data`, gambar di field `file` |
+| `POST /extract/{dokumen}/base64` | `application/json`: `{"image": "<base64>"}`. Boleh berupa base64 polos atau data URI (`data:image/jpeg;base64,...`) |
+
+Contoh base64 (berlaku juga untuk `/extract/npwp/base64`):
+
+```bash
+(printf '{"image": "'; base64 -w0 ktp.jpg; printf '"}') > body.json
+curl -H "Content-Type: application/json" -d @body.json http://localhost:8070/extract/ktp/base64
+```
+
+Di Swagger (`/docs`), endpoint multipart menampilkan tombol **Choose File** untuk upload. Agar tombol itu muncul di Swagger UI 5.17, field `file` diberi `format: binary` secara eksplisit.
 
 ### `POST /extract/ktp`
 
@@ -430,11 +444,11 @@ Response:
 | HTTP | Arti |
 |---|---|
 | 200 | Berhasil |
-| 400 | File bukan gambar yang valid |
+| 400 | File bukan gambar yang valid, atau field `image` bukan base64 yang valid |
 | 404 | Jenis dokumen tidak dikenal (mis. `/extract/sim`) |
 | 413 | File lebih dari 10 MB |
 | 415 | Content-type bukan JPEG/PNG/WebP |
-| 422 | Output model tidak bisa di-parse sebagai JSON (praktis tidak terjadi di mode vLLM) |
+| 422 | Body request tidak lengkap (mis. field `file`/`image` tidak ada), atau output model tidak bisa di-parse sebagai JSON |
 | 500 | Error inference (mis. vLLM mati) |
 
 ### `GET /health`

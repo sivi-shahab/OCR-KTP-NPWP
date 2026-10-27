@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import binascii
 import logging
 from contextlib import asynccontextmanager
 
@@ -14,7 +16,7 @@ from .config import Settings
 from .documents import DOCUMENTS, DocumentType
 from .extraction import OutputParseError, parse_fields
 from .images import ALLOWED_CONTENT_TYPES, InvalidImageError, decode_image, limit_pixels
-from .schemas import HealthResponse
+from .schemas import Base64ImageRequest, HealthResponse
 
 logger = logging.getLogger(__name__)
 
@@ -80,13 +82,8 @@ def _add_docs_routes(app: FastAPI) -> None:
 
 
 def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings) -> None:
-    async def extract(
-        request: Request,
-        file: UploadFile = File(..., description=f"{document.label} image file (jpg/png/webp)"),
-    ):
+    async def run(request: Request, image: Image.Image):
         backend: InferenceBackend = request.app.state.backend
-        image = await _read_upload(file, settings)
-
         try:
             raw_output = await backend.generate(image, document.prompt, document.json_schema)
             data = parse_fields(raw_output, document.data_model)
@@ -103,6 +100,21 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
         )
         return document.response_model(success=True, data=data, raw_output=raw_output)
 
+    async def extract(
+        request: Request,
+        # Swagger UI 5.17 only renders a file picker for `format: binary`; FastAPI's
+        # OpenAPI 3.1 output uses `contentMediaType` instead, so add it explicitly.
+        file: UploadFile = File(
+            ...,
+            description=f"{document.label} image file (jpg/png/webp)",
+            json_schema_extra={"format": "binary"},
+        ),
+    ):
+        return await run(request, await _read_upload(file, settings))
+
+    async def extract_base64(request: Request, body: Base64ImageRequest):
+        return await run(request, await _read_base64(body.image, settings))
+
     app.add_api_route(
         f"/extract/{document.key}",
         extract,
@@ -111,6 +123,15 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
         summary=f"Extract {document.label} fields from an uploaded image",
         tags=[f"{document.label} OCR"],
         name=f"extract_{document.key}",
+    )
+    app.add_api_route(
+        f"/extract/{document.key}/base64",
+        extract_base64,
+        methods=["POST"],
+        response_model=document.response_model,
+        summary=f"Extract {document.label} fields from a base64-encoded image (JSON body)",
+        tags=[f"{document.label} OCR"],
+        name=f"extract_{document.key}_base64",
     )
 
 
@@ -127,6 +148,30 @@ async def _read_upload(file: UploadFile, settings: Settings) -> Image.Image:
         raise HTTPException(status_code=413, detail=f"File too large (max {max_mb} MB).")
 
     logger.info("Running inference on file: %s (%d bytes)", file.filename, len(contents))
+    try:
+        image = await asyncio.to_thread(decode_image, contents)
+    except InvalidImageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return await asyncio.to_thread(limit_pixels, image, settings.max_pixels)
+
+
+async def _read_base64(encoded: str, settings: Settings) -> Image.Image:
+    # Accept both a bare base64 string and a data URI ("data:image/jpeg;base64,...").
+    if encoded.startswith("data:"):
+        _, _, encoded = encoded.partition(",")
+    encoded = "".join(encoded.split())
+
+    max_mb = settings.max_upload_bytes // (1024 * 1024)
+    if len(encoded) * 3 // 4 > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail=f"Image too large (max {max_mb} MB).")
+    try:
+        contents = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Field 'image' is not valid base64.")
+    if len(contents) > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail=f"Image too large (max {max_mb} MB).")
+
+    logger.info("Running inference on base64 image (%d bytes)", len(contents))
     try:
         image = await asyncio.to_thread(decode_image, contents)
     except InvalidImageError as exc:

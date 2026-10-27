@@ -56,6 +56,14 @@ class NPWPResponse(BaseModel):
     raw_output: str
 
 
+class Base64ImageRequest(BaseModel):
+    image: str = Field(
+        description="Image (jpg/png/webp, max 10 MB) as a base64 string, "
+                    "with or without a data URI prefix such as 'data:image/jpeg;base64,'.",
+        examples=["data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ..."],
+    )
+
+
 class HealthResponse(BaseModel):
     status: str
     backend: str
