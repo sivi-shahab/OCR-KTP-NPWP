@@ -27,3 +27,8 @@ __pycache__/
 *.swp
 .DS_Store
 
+
+# Docs site (VitePress)
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

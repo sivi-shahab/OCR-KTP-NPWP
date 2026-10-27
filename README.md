@@ -16,6 +16,8 @@ Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas I
                               └────────────────────────────┘      └─────────────────────────────┘
 ```
 
+📖 **Dokumentasi lengkap:** https://sivi-shahab.github.io/OCR-KTP-NPWP/ (sumber di `docs/`, VitePress).
+
 Production berjalan dengan **Docker Compose** (`docker-compose.yml`). Setup lama dengan GNU screen masih bisa dipakai sebagai [alternatif tanpa Docker](#alternatif-setup-screen-tanpa-docker).
 
 ## Daftar isi
