@@ -35,7 +35,9 @@ class VLLMBackend(InferenceBackend):
         except httpx.HTTPError:
             return False
 
-    async def generate(self, image: Image.Image, prompt: str, json_schema: dict) -> str:
+    async def generate(
+        self, image: Image.Image, prompt: str, json_schema: dict, max_new_tokens: int
+    ) -> str:
         image_url = await asyncio.to_thread(_to_data_url, image)
         payload = {
             "model": self._settings.vllm_model,
@@ -46,7 +48,7 @@ class VLLMBackend(InferenceBackend):
                     {"type": "text", "text": prompt},
                 ],
             }],
-            "max_tokens": self._settings.max_new_tokens,
+            "max_tokens": max_new_tokens,
             "temperature": 0,
             "repetition_penalty": 1.0,
             # Structured output: vLLM constrains decoding to the schema, so the JSON is always valid

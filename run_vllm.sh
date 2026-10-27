@@ -11,8 +11,8 @@ exec venv-vllm/bin/vllm serve model/ \
   --host 127.0.0.1 --port 8071 \
   --dtype bfloat16 \
   --gpu-memory-utilization "${VLLM_GPU_UTIL:-0.40}" \
-  --max-model-len 4096 \
+  --max-model-len 8192 \
   --max-num-seqs 8 \
   --limit-mm-per-prompt '{"image":1}' \
-  --mm-processor-kwargs '{"min_pixels":200704,"max_pixels":1003520}' \
+  --mm-processor-kwargs '{"min_pixels":200704,"max_pixels":2508800}' \
   ${VLLM_EXTRA_ARGS---enforce-eager}

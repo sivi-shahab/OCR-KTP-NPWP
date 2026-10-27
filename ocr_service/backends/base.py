@@ -18,5 +18,7 @@ class InferenceBackend(ABC):
     async def is_ready(self) -> bool: ...
 
     @abstractmethod
-    async def generate(self, image: Image.Image, prompt: str, json_schema: dict) -> str:
+    async def generate(
+        self, image: Image.Image, prompt: str, json_schema: dict, max_new_tokens: int
+    ) -> str:
         """Return the model's raw answer. Backends that support it constrain output to `json_schema`."""

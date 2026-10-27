@@ -44,6 +44,42 @@ class NPWPData(BaseModel):
     TANGGAL_TERDAFTAR: str = ""
 
 
+class KKMember(BaseModel):
+    """One family member: a numbered row of both tables on the KK, merged by row number."""
+
+    NAMA_LENGKAP: str = ""
+    NIK: str = _constrained(pattern=r"[0-9]{16}")
+    JENIS_KELAMIN: str = _constrained(enum=["LAKI-LAKI", "PEREMPUAN"])
+    TEMPAT_LAHIR: str = ""
+    TANGGAL_LAHIR: str = _constrained(pattern=r"[0-9]{2}-[0-9]{2}-[0-9]{4}")
+    AGAMA: str = ""
+    PENDIDIKAN: str = ""
+    JENIS_PEKERJAAN: str = ""
+    GOLONGAN_DARAH: str = ""
+    STATUS_PERKAWINAN: str = ""
+    TANGGAL_PERKAWINAN: str = ""
+    STATUS_HUBUNGAN_DALAM_KELUARGA: str = ""
+    KEWARGANEGARAAN: str = ""
+    NO_PASPOR: str = ""
+    NO_KITAP: str = ""
+    NAMA_AYAH: str = ""
+    NAMA_IBU: str = ""
+
+
+class KKData(BaseModel):
+    NO_KK: str = _constrained(pattern=r"[0-9]{16}")
+    NAMA_KEPALA_KELUARGA: str = ""
+    ALAMAT: str = ""
+    RT_RW: str = _constrained(pattern=r"[0-9]{1,3}/[0-9]{1,3}")
+    DESA_KELURAHAN: str = ""
+    KECAMATAN: str = ""
+    KABUPATEN_KOTA: str = ""
+    KODE_POS: str = _constrained(pattern=r"[0-9]{5}")
+    PROVINSI: str = ""
+    TANGGAL_DIKELUARKAN: str = ""
+    ANGGOTA_KELUARGA: list[KKMember] = Field(default_factory=list)
+
+
 class KTPResponse(BaseModel):
     success: bool
     data: KTPData
@@ -53,6 +89,12 @@ class KTPResponse(BaseModel):
 class NPWPResponse(BaseModel):
     success: bool
     data: NPWPData
+    raw_output: str
+
+
+class KKResponse(BaseModel):
+    success: bool
+    data: KKData
     raw_output: str
 
 

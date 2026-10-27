@@ -20,6 +20,9 @@ class Settings:
     # An ID card is readable at ~1M pixels; capping this is the single biggest speed win.
     min_pixels: int = 256 * 28 * 28
     max_pixels: int = 1280 * 28 * 28
+    # Upper bound of the vision processor (vLLM's --mm-processor-kwargs max_pixels). Must be at
+    # least the largest per-document max_pixels in documents.py (Kartu Keluarga).
+    vision_max_pixels: int = 3200 * 28 * 28
 
     vllm_url: str = "http://127.0.0.1:8071"
     vllm_model: str = "qwen-ktp"

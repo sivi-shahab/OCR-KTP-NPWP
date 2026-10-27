@@ -41,13 +41,13 @@ class HFBackend(InferenceBackend):
     async def is_ready(self) -> bool:
         return self._model is not None
 
-    async def generate(self, image: Image.Image, prompt: str, json_schema: dict) -> str:
+    async def generate(
+        self, image: Image.Image, prompt: str, json_schema: dict, max_new_tokens: int
+    ) -> str:
         # transformers has no constrained decoding here; the prompt alone asks for JSON.
         # Blocking GPU work runs off the event loop so /health stays responsive.
         async with self._lock:
-            return await asyncio.to_thread(
-                self._generate, image, prompt, self._settings.max_new_tokens
-            )
+            return await asyncio.to_thread(self._generate, image, prompt, max_new_tokens)
 
     def _load(self) -> None:
         s = self._settings
@@ -58,7 +58,8 @@ class HFBackend(InferenceBackend):
 
         self._processor = AutoProcessor.from_pretrained(
             source,
-            size={"shortest_edge": s.min_pixels, "longest_edge": s.max_pixels},
+            # The API already downscales each image to its document's pixel limit
+            size={"shortest_edge": s.min_pixels, "longest_edge": s.vision_max_pixels},
         )
         # bf16 is Qwen2.5-VL's native dtype; fp16 can overflow in the vision tower
         self._model = AutoModelForImageTextToText.from_pretrained(

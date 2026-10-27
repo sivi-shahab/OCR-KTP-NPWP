@@ -56,7 +56,7 @@ def create_app(settings: Settings) -> FastAPI:
     app = FastAPI(
         title="OCR API",
         description="Extract structured data from Indonesian identity documents "
-                    "(KTP, NPWP) using Qwen2.5-VL.",
+                    "(KTP, NPWP, Kartu Keluarga) using Qwen2.5-VL.",
         version="2.0.0",
         lifespan=lifespan,
         docs_url=None,
@@ -104,11 +104,15 @@ def _add_docs_routes(app: FastAPI) -> None:
 
 def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings) -> None:
     dependencies = [Depends(_api_key_dependency(settings))]
+    max_pixels = document.max_pixels or settings.max_pixels
+    max_new_tokens = document.max_new_tokens or settings.max_new_tokens
 
     async def run(request: Request, image: Image.Image):
         backend: InferenceBackend = request.app.state.backend
         try:
-            raw_output = await backend.generate(image, document.prompt, document.json_schema)
+            raw_output = await backend.generate(
+                image, document.prompt, document.json_schema, max_new_tokens
+            )
             data = parse_fields(raw_output, document.data_model)
         except OutputParseError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
@@ -133,10 +137,10 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
             json_schema_extra={"format": "binary"},
         ),
     ):
-        return await run(request, await _read_upload(file, settings))
+        return await run(request, await _read_upload(file, settings, max_pixels))
 
     async def extract_base64(request: Request, body: Base64ImageRequest):
-        return await run(request, await _read_base64(body.image, settings))
+        return await run(request, await _read_base64(body.image, settings, max_pixels))
 
     app.add_api_route(
         f"/extract/{document.key}",
@@ -160,7 +164,7 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
     )
 
 
-async def _read_upload(file: UploadFile, settings: Settings) -> Image.Image:
+async def _read_upload(file: UploadFile, settings: Settings, max_pixels: int) -> Image.Image:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=415,
@@ -177,10 +181,10 @@ async def _read_upload(file: UploadFile, settings: Settings) -> Image.Image:
         image = await asyncio.to_thread(decode_image, contents)
     except InvalidImageError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return await asyncio.to_thread(limit_pixels, image, settings.max_pixels)
+    return await asyncio.to_thread(limit_pixels, image, max_pixels)
 
 
-async def _read_base64(encoded: str, settings: Settings) -> Image.Image:
+async def _read_base64(encoded: str, settings: Settings, max_pixels: int) -> Image.Image:
     # Accept both a bare base64 string and a data URI ("data:image/jpeg;base64,...").
     if encoded.startswith("data:"):
         _, _, encoded = encoded.partition(",")
@@ -201,4 +205,4 @@ async def _read_base64(encoded: str, settings: Settings) -> Image.Image:
         image = await asyncio.to_thread(decode_image, contents)
     except InvalidImageError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return await asyncio.to_thread(limit_pixels, image, settings.max_pixels)
+    return await asyncio.to_thread(limit_pixels, image, max_pixels)

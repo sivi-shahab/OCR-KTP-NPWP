@@ -1,4 +1,4 @@
-# OCR API (KTP & NPWP) + vLLM model server.
+# OCR API (KTP, NPWP, KK) + vLLM model server.
 #
 #   docker compose up -d --build
 #   curl localhost:8070/health
@@ -23,10 +23,10 @@ services:
       - --port=8071
       - --dtype=bfloat16
       - --gpu-memory-utilization=${VLLM_GPU_UTIL:-0.40}
-      - --max-model-len=4096
+      - --max-model-len=8192
       - --max-num-seqs=8
       - --limit-mm-per-prompt={"image":1}
-      - --mm-processor-kwargs={"min_pixels":200704,"max_pixels":1003520}
+      - --mm-processor-kwargs={"min_pixels":200704,"max_pixels":2508800}
       # Eager mode as in run_vllm.sh (the host has no nvcc).
       # VLLM_EAGER=no-enforce-eager tries CUDA graphs if the image can compile them.
       - --${VLLM_EAGER:-enforce-eager}

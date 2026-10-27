@@ -2,7 +2,7 @@
 
 import json
 import re
-from typing import TypeVar
+from typing import TypeVar, get_args, get_origin
 
 from pydantic import BaseModel
 
@@ -20,9 +20,32 @@ def parse_fields(raw: str, data_model: type[DataModel]) -> DataModel:
     """Extract the outermost JSON object from `raw` and map it onto `data_model`.
 
     Missing keys become "", unknown keys are dropped, non-string values are stringified.
+    List-of-model fields (e.g. KK family members) are parsed item by item the same way.
     """
-    fields = _load_json_object(raw)
-    return data_model(**{name: str(fields.get(name, "")) for name in data_model.model_fields})
+    return _build(_load_json_object(raw), data_model)
+
+
+def _build(fields: dict, data_model: type[DataModel]) -> DataModel:
+    values = {}
+    for name, field in data_model.model_fields.items():
+        value = fields.get(name)
+        item_model = _list_item_model(field.annotation)
+        if item_model is None:
+            values[name] = "" if value is None else str(value)
+        elif isinstance(value, list):
+            values[name] = [_build(item, item_model) for item in value if isinstance(item, dict)]
+        else:
+            values[name] = []
+    return data_model(**values)
+
+
+def _list_item_model(annotation) -> type[BaseModel] | None:
+    """The item model of a `list[SomeModel]` annotation, otherwise None."""
+    if get_origin(annotation) is list:
+        (item,) = get_args(annotation)
+        if isinstance(item, type) and issubclass(item, BaseModel):
+            return item
+    return None
 
 
 def _load_json_object(raw: str) -> dict:

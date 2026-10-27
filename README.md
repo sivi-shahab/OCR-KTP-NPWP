@@ -1,4 +1,4 @@
-# OCR API (KTP & NPWP)
+# OCR API (KTP, NPWP & Kartu Keluarga)
 
 Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas Indonesia menggunakan model vision-language **Qwen2.5-VL-3B-Instruct**. Satu service, dibedakan per endpoint:
 
@@ -6,11 +6,13 @@ Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas I
 |---|---|
 | KTP | `POST /extract/ktp` |
 | NPWP | `POST /extract/npwp` |
+| Kartu Keluarga (KK) | `POST /extract/kk` |
 
 ```
                               ┌────────────────────────────┐      ┌─────────────────────────────┐
  client ── /extract/ktp  ──►  │ OCR API :8070              │ ───► │ vLLM (Qwen2.5-VL) :8071     │ ── GPU
  client ── /extract/npwp ──►  │ container ocr-qwen-api-1   │      │ container ocr-qwen-vllm-1   │
+ client ── /extract/kk   ──►  │                            │      │                             │
                               └────────────────────────────┘      └─────────────────────────────┘
 ```
 
@@ -176,15 +178,36 @@ Backend dipilih sekali saat startup lewat `INFERENCE_BACKEND`. Backend tidak tah
 | `KPP` | Kantor Pelayanan Pajak penerbit, mis. `KPP PRATAMA JAKARTA SETIABUDI SATU` | Bebas |
 | `TANGGAL_TERDAFTAR` | Tanggal terdaftar sesuai cetakan | Bebas |
 
+**Kartu Keluarga (KK):** field header, ditambah `ANGGOTA_KELUARGA` = list berisi satu objek per anggota keluarga (baris tabel atas dan bawah dengan nomor yang sama digabung).
+
+| Field header | Keterangan | Nilai yang diizinkan (mode vLLM) |
+|---|---|---|
+| `NO_KK` | Nomor KK di bawah judul | Tepat 16 digit |
+| `NAMA_KEPALA_KELUARGA`, `ALAMAT`, `DESA_KELURAHAN`, `KECAMATAN`, `KABUPATEN_KOTA`, `PROVINSI` | Baris header dengan label tersebut | Bebas |
+| `RT_RW` | Mis. `003/005` | `N/N` s.d. `NNN/NNN` |
+| `KODE_POS` | Kode pos | Tepat 5 digit |
+| `TANGGAL_DIKELUARKAN` | "Dikeluarkan Tanggal" di bagian bawah | Bebas |
+
+| Field anggota | Keterangan | Nilai yang diizinkan (mode vLLM) |
+|---|---|---|
+| `NIK` | NIK anggota | Tepat 16 digit |
+| `JENIS_KELAMIN` | Jenis kelamin | `LAKI-LAKI`, `PEREMPUAN` |
+| `TANGGAL_LAHIR` | Tanggal lahir | `DD-MM-YYYY` |
+| `NAMA_LENGKAP`, `TEMPAT_LAHIR`, `AGAMA`, `PENDIDIKAN`, `JENIS_PEKERJAAN`, `GOLONGAN_DARAH` | Kolom tabel atas | Bebas |
+| `STATUS_PERKAWINAN`, `TANGGAL_PERKAWINAN`, `STATUS_HUBUNGAN_DALAM_KELUARGA`, `KEWARGANEGARAAN`, `NO_PASPOR`, `NO_KITAP`, `NAMA_AYAH`, `NAMA_IBU` | Kolom tabel bawah | Bebas |
+
+KK berupa lembar A4 dengan teks tabel kecil dan output yang panjang, jadi `documents.py` memberinya batas sendiri: gambar sampai `2508800` piksel (bukan `1003520` seperti kartu) dan `3072` token output. Karena itu vLLM dijalankan dengan `--max-model-len 8192` dan `max_pixels` `2508800`; KTP/NPWP tetap diperkecil ke `MAX_PIXELS` oleh API sebelum dikirim, jadi kecepatannya tidak berubah. Satu request KK jauh lebih lambat dari KTP (±30 detik untuk 3 anggota, bertambah per anggota).
+
 Field yang tidak terbaca dikembalikan sebagai string kosong `""` (selalu diizinkan, juga untuk field yang dibatasi).
 
 ## Prompt & batasan output
 
-Setiap dokumen punya prompt sendiri di `ocr_service/prompts.py` (`KTP_PROMPT`, `NPWP_PROMPT`). Prompt menjelaskan tata letak kartu dan aturan tiap field, karena itulah sumber salah baca yang paling sering:
+Setiap dokumen punya prompt sendiri di `ocr_service/prompts.py` (`KTP_PROMPT`, `NPWP_PROMPT`, `KK_PROMPT`). Prompt menjelaskan tata letak kartu dan aturan tiap field, karena itulah sumber salah baca yang paling sering:
 
 - **KTP:** urutan baris di kartu disebutkan satu per satu. `Gol. Darah` sering kosong; tanpa penjelasan ini model mengisinya dengan nilai baris berikutnya sehingga `ALAMAT`, `RT_RW`, `KEL_DESA`, dst. ikut bergeser satu baris. Prompt juga menegaskan `BERLAKU_HINGGA` diambil dari baris "Berlaku Hingga", bukan dari kota/tanggal terbit di bawah foto.
 - **NPWP:** menjelaskan format nomor lama dan baru, memisahkan alamat wajib pajak dari nama KPP, dan melarang menyalin nomor NPWP ke `NIK`.
-- Keduanya meminta teks dibaca **persis sesuai cetakan** (tanpa koreksi ejaan) dan memberi petunjuk angka yang sering tertukar (`O`→`0`, `I`→`1`, `B`→`8`, `S`→`5`) untuk NIK/NPWP. Daftar key JSON di akhir prompt dibuat otomatis dari model data, jadi tidak bisa berbeda dari schema.
+- **KK:** menjelaskan header dan kedua tabel anggota, dan meminta baris N tabel atas digabung dengan baris N tabel bawah menjadi satu anggota, tanpa menggeser nilai ke baris/kolom tetangga.
+- Semuanya meminta teks dibaca **persis sesuai cetakan** (tanpa koreksi ejaan) dan memberi petunjuk angka yang sering tertukar (`O`→`0`, `I`→`1`, `B`→`8`, `S`→`5`) untuk NIK/NPWP. Daftar key JSON di akhir prompt dibuat otomatis dari model data, jadi tidak bisa berbeda dari schema.
 
 Selain prompt, JSON schema yang dikirim ke vLLM (`DocumentType.json_schema` di `documents.py`) membatasi output saat decoding:
 
@@ -452,6 +475,53 @@ Response:
 }
 ```
 
+### `POST /extract/kk`
+
+```bash
+curl -H "X-API-Key: <key>" -F "file=@kk.jpg;type=image/jpeg" http://localhost:8070/extract/kk
+```
+
+Response (dipersingkat):
+```json
+{
+  "success": true,
+  "data": {
+    "NO_KK": "3201012304150007",
+    "NAMA_KEPALA_KELUARGA": "BUDI SANTOSO",
+    "ALAMAT": "JL MAWAR NO 12",
+    "RT_RW": "003/005",
+    "DESA_KELURAHAN": "SUKAMAJU",
+    "KECAMATAN": "CIBINONG",
+    "KABUPATEN_KOTA": "BOGOR",
+    "KODE_POS": "16911",
+    "PROVINSI": "JAWA BARAT",
+    "TANGGAL_DIKELUARKAN": "10-03-2021",
+    "ANGGOTA_KELUARGA": [
+      {
+        "NAMA_LENGKAP": "BUDI SANTOSO",
+        "NIK": "3201012301800003",
+        "JENIS_KELAMIN": "LAKI-LAKI",
+        "TEMPAT_LAHIR": "BOGOR",
+        "TANGGAL_LAHIR": "23-01-1980",
+        "AGAMA": "ISLAM",
+        "PENDIDIKAN": "SLTA/SEDERAJAT",
+        "JENIS_PEKERJAAN": "KARYAWAN SWASTA",
+        "GOLONGAN_DARAH": "O",
+        "STATUS_PERKAWINAN": "KAWIN TERCATAT",
+        "TANGGAL_PERKAWINAN": "14-02-2008",
+        "STATUS_HUBUNGAN_DALAM_KELUARGA": "KEPALA KELUARGA",
+        "KEWARGANEGARAAN": "WNI",
+        "NO_PASPOR": "",
+        "NO_KITAP": "",
+        "NAMA_AYAH": "SUPARMAN",
+        "NAMA_IBU": "SUMIATI"
+      }
+    ]
+  },
+  "raw_output": "{\"NO_KK\":\"3201012304150007\", ...}"
+}
+```
+
 ### Kode HTTP
 
 | HTTP | Arti |
@@ -493,8 +563,8 @@ requirements-hf.txt     + torch/transformers untuk mode hf
 model/                  bobot Qwen2.5-VL-3B (±7.5 GB)
 ocr_service/
 ├── config.py           Settings dari environment variable
-├── schemas.py          KTPData, NPWPData, response models
-├── documents.py        registry jenis dokumen (KTP, NPWP): schema + prompt
+├── schemas.py          KTPData, NPWPData, KKData, response models
+├── documents.py        registry jenis dokumen (KTP, NPWP, KK): schema + prompt + batas per dokumen
 ├── prompts.py          prompt khusus per dokumen (layout kartu + aturan per field)
 ├── extraction.py       parsing output model
 ├── images.py           decode & resize gambar
@@ -510,7 +580,7 @@ backup/                 versi kode sebelumnya (untuk rollback)
 ### Menambah field atau jenis dokumen baru
 
 - **Field baru:** tambahkan di model data (`KTPData` / `NPWPData` di `schemas.py`; pakai `_constrained(enum=...)` atau `_constrained(pattern=...)` jika nilainya terbatas), lalu tambahkan aturan field-nya di `prompts.py`. Daftar key JSON di prompt dan JSON schema vLLM ikut ter-update otomatis.
-- **Dokumen baru** (mis. SIM): buat `SIMData` + `SIMResponse` di `schemas.py` dan `SIM_PROMPT` di `prompts.py`, lalu daftarkan `DocumentType` baru di `documents.py` dan tambahkan ke `DOCUMENTS`. Endpoint `POST /extract/sim` otomatis tersedia setelah `docker compose up -d --build api` (vLLM tidak perlu di-restart).
+- **Dokumen baru** (mis. SIM): buat `SIMData` + `SIMResponse` di `schemas.py` dan `SIM_PROMPT` di `prompts.py`, lalu daftarkan `DocumentType` baru di `documents.py` dan tambahkan ke `DOCUMENTS`. Endpoint `POST /extract/sim` otomatis tersedia setelah `docker compose up -d --build api` (vLLM tidak perlu di-restart). Dokumen besar bisa mengisi `max_pixels` / `max_new_tokens` di `DocumentType` (lihat KK); pastikan masih di bawah `max_pixels` dan `--max-model-len` server vLLM.
 
 ### Rollback
 

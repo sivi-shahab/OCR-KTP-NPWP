@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from .prompts import KTP_PROMPT, NPWP_PROMPT
-from .schemas import KTPData, KTPResponse, NPWPData, NPWPResponse
+from .prompts import KK_PROMPT, KTP_PROMPT, NPWP_PROMPT
+from .schemas import KKData, KKResponse, KTPData, KTPResponse, NPWPData, NPWPResponse
 
 
 @dataclass(frozen=True)
@@ -20,13 +20,17 @@ class DocumentType:
     response_model: type[BaseModel]
     prompt: str
     log_fields: tuple[str, ...]           # Fields logged after a successful extraction
+    # Overrides of Settings.max_pixels / Settings.max_new_tokens for larger documents
+    max_pixels: int | None = None
+    max_new_tokens: int | None = None
 
     @property
     def json_schema(self) -> dict:
         schema = self.data_model.model_json_schema()
-        # Every field has a "" default, so pydantic marks none as required; without this,
+        # Every field has a default, so pydantic marks none as required; without this,
         # vLLM's constrained decoding lets the model silently skip keys.
-        schema["required"] = list(schema["properties"])
+        for model_schema in (schema, *schema.get("$defs", {}).values()):
+            model_schema["required"] = list(model_schema["properties"])
         return schema
 
 
@@ -48,4 +52,17 @@ NPWP = DocumentType(
     log_fields=("NPWP", "NAMA"),
 )
 
-DOCUMENTS: tuple[DocumentType, ...] = (KTP, NPWP)
+KK = DocumentType(
+    key="kk",
+    label="Kartu Keluarga",
+    data_model=KKData,
+    response_model=KKResponse,
+    prompt=KK_PROMPT,
+    log_fields=("NO_KK", "NAMA_KEPALA_KELUARGA"),
+    # A KK is an A4 sheet with small table text: it needs more pixels than an ID card, and
+    # one JSON object per family member needs far more output tokens.
+    max_pixels=3200 * 28 * 28,
+    max_new_tokens=3072,
+)
+
+DOCUMENTS: tuple[DocumentType, ...] = (KTP, NPWP, KK)
