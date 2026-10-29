@@ -18,7 +18,7 @@ __pycache__/
 *.log
 
 # Local env / secrets
-.env
+#.env
 .env.*
 !.env.example
 
