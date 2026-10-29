@@ -275,7 +275,15 @@ nvidia-smi                          # pemakaian GPU (vLLM ±10 GB)
 
 ### Variabel opsional
 
-Diset di shell atau file `.env` di folder ini. `.env` di server berisi `API_KEYS`; variabel lain memakai default:
+Semua variabel didokumentasikan di [`.env.example`](.env.example). Untuk setup baru:
+
+```bash
+cp .env.example .env && chmod 600 .env   # lalu isi API_KEYS
+```
+
+`.env` dibaca oleh `docker-compose.yml`, `run_vllm.sh`, dan `main.py`; variabel yang sudah diset di shell menang atas `.env`. File ini masuk `.gitignore` dan `.dockerignore`, jadi tidak pernah di-commit atau ikut masuk image.
+
+Variabel Docker Compose:
 
 | Variable | Default | Keterangan |
 |---|---|---|
@@ -283,8 +291,12 @@ Diset di shell atau file `.env` di folder ini. `.env` di server berisi `API_KEYS
 | `API_PORT` | `8070` | Port host untuk API |
 | `VLLM_GPU_UTIL` | `0.40` | Porsi memori GPU untuk vLLM |
 | `VLLM_EAGER` | `enforce-eager` | `no-enforce-eager` untuk mencoba CUDA graphs (lebih cepat, butuh memori lebih) |
+| `VLLM_MODEL` | `qwen-ktp` | Dipakai untuk `--served-model-name` vLLM **dan** API, sehingga selalu sama |
+| `VLLM_MAX_MODEL_LEN` | `8192` | `--max-model-len` vLLM |
+| `VLLM_MAX_NUM_SEQS` | `8` | Maksimal request diproses bersamaan di vLLM |
+| `VLLM_IMAGE` | `vllm/vllm-openai:v0.31.0` | Image Docker vLLM |
 
-Variabel API lain (lihat [Konfigurasi](#konfigurasi-api-environment-variable)) ditambahkan di bagian `environment:` service `api`.
+Variabel API (lihat [Konfigurasi](#konfigurasi-api-environment-variable)) yang diteruskan ke container ada di bagian `environment:` service `api`; tambahkan di sana jika perlu variabel lain.
 
 ### Hanya image API
 
@@ -392,6 +404,11 @@ Flag vLLM di `docker-compose.yml` (service `vllm`) sama dengan di `run_vllm.sh`.
 | `VLLM_MODEL` | `qwen-ktp` | Nama model di server vLLM (`--served-model-name`) |
 | `VLLM_TIMEOUT` | `120` | Timeout request ke vLLM (detik) |
 | `MIN_PIXELS` / `MAX_PIXELS` | `200704` / `1003520` | Batas resolusi gambar. Naikkan `MAX_PIXELS` jika teks kecil salah baca |
+| `VISION_MAX_PIXELS` | `2508800` | Batas atas vision processor (backend `hf`); minimal sebesar batas piksel KK |
+| `MAX_NEW_TOKENS` | `512` | Batas token output KTP/NPWP |
+| `MAX_UPLOAD_MB` | `10` | Ukuran maksimal gambar yang diupload |
+| `MODEL_DIR` | `model/` | Folder bobot model (backend `hf`) |
+| `MODEL_ID` | `Qwen/Qwen2.5-VL-3B-Instruct` | Model Hugging Face yang diunduh ke `MODEL_DIR` jika kosong (backend `hf`) |
 | `API_KEYS` | kosong | Key yang diterima di header `X-API-Key`, dipisah koma. Kosong = `/extract/*` terbuka tanpa autentikasi (ada warning di log) |
 
 ## API

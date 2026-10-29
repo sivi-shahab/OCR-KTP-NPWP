@@ -11,20 +11,20 @@
 
 services:
   vllm:
-    image: vllm/vllm-openai:v0.31.0
+    image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.31.0}
     restart: unless-stopped
     ipc: host
     volumes:
       - ./model:/model:ro
     command:
       - /model
-      - --served-model-name=qwen-ktp
+      - --served-model-name=${VLLM_MODEL:-qwen-ktp}
       - --host=0.0.0.0
       - --port=8071
       - --dtype=bfloat16
       - --gpu-memory-utilization=${VLLM_GPU_UTIL:-0.40}
-      - --max-model-len=8192
-      - --max-num-seqs=8
+      - --max-model-len=${VLLM_MAX_MODEL_LEN:-8192}
+      - --max-num-seqs=${VLLM_MAX_NUM_SEQS:-8}
       - --limit-mm-per-prompt={"image":1}
       - --mm-processor-kwargs={"min_pixels":200704,"max_pixels":2508800}
       # Eager mode as in run_vllm.sh (the host has no nvcc).
@@ -50,11 +50,18 @@ services:
     restart: unless-stopped
     ports:
       - "${API_PORT:-8070}:8070"
+    # Values come from .env (gitignored, see .env.example). Only variables the API reads
+    # are listed, so vLLM-only settings never reach the API container.
     environment:
       INFERENCE_BACKEND: vllm
       VLLM_URL: http://vllm:8071
-      VLLM_MODEL: qwen-ktp
-      # Comma-separated keys for the X-API-Key header, set in .env (gitignored).
+      VLLM_MODEL: ${VLLM_MODEL:-qwen-ktp}
+      VLLM_TIMEOUT: ${VLLM_TIMEOUT:-120}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+      MAX_NEW_TOKENS: ${MAX_NEW_TOKENS:-512}
+      MIN_PIXELS: ${MIN_PIXELS:-200704}
+      MAX_PIXELS: ${MAX_PIXELS:-1003520}
+      # Comma-separated keys for the X-API-Key header.
       API_KEYS: ${API_KEYS:-}
     depends_on:
       vllm:

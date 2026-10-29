@@ -39,8 +39,15 @@ class Settings:
     def from_env(cls) -> "Settings":
         settings = cls(
             backend=os.getenv("INFERENCE_BACKEND", cls.backend).lower(),
+            model_id=os.getenv("MODEL_ID", cls.model_id),
+            model_dir=os.getenv("MODEL_DIR", cls.model_dir),
+            max_new_tokens=int(os.getenv("MAX_NEW_TOKENS", cls.max_new_tokens)),
+            max_upload_bytes=int(os.getenv("MAX_UPLOAD_MB", cls.max_upload_bytes // (1024 * 1024)))
+            * 1024
+            * 1024,
             min_pixels=int(os.getenv("MIN_PIXELS", cls.min_pixels)),
             max_pixels=int(os.getenv("MAX_PIXELS", cls.max_pixels)),
+            vision_max_pixels=int(os.getenv("VISION_MAX_PIXELS", cls.vision_max_pixels)),
             vllm_url=os.getenv("VLLM_URL", cls.vllm_url),
             vllm_model=os.getenv("VLLM_MODEL", cls.vllm_model),
             vllm_timeout=float(os.getenv("VLLM_TIMEOUT", cls.vllm_timeout)),

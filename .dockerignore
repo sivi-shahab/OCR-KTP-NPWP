@@ -6,6 +6,9 @@ backup/
 **/__pycache__/
 *.pyc
 *.log
+# Secrets never enter the build context or the image
+.env
+.env.*
 .git/
 Dockerfile
 docker-compose.yml
