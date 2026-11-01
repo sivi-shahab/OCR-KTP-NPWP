@@ -80,22 +80,36 @@ class KKData(BaseModel):
     ANGGOTA_KELUARGA: list[KKMember] = Field(default_factory=list)
 
 
+class FraudCheck(BaseModel):
+    """Heuristic presentation-attack check. Flag-only: extraction runs regardless."""
+
+    suspicious: bool = Field(description="true if any detector raised a flag; route to manual review")
+    is_photocopy: bool = Field(description="The document looks like a black-and-white copy")
+    is_screen_recapture: bool = Field(description="The image looks like a photo of a laptop/phone screen")
+    photocopy_score: float = Field(description="0 (full colour) .. 1 (no colour); flagged at >= 0.5")
+    screen_score: float = Field(description="0 (no periodic pattern) .. 1 (strong moiré); flagged at >= 0.5")
+    signals: list[str] = Field(description="Detectors that fired: low_colour, moire_pattern")
+
+
 class KTPResponse(BaseModel):
     success: bool
     data: KTPData
     raw_output: str
+    fraud_check: FraudCheck | None = None
 
 
 class NPWPResponse(BaseModel):
     success: bool
     data: NPWPData
     raw_output: str
+    fraud_check: FraudCheck | None = None
 
 
 class KKResponse(BaseModel):
     success: bool
     data: KKData
     raw_output: str
+    fraud_check: FraudCheck | None = None
 
 
 class Base64ImageRequest(BaseModel):

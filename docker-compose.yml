@@ -61,6 +61,7 @@ services:
       MAX_NEW_TOKENS: ${MAX_NEW_TOKENS:-512}
       MIN_PIXELS: ${MIN_PIXELS:-200704}
       MAX_PIXELS: ${MAX_PIXELS:-1003520}
+      FRAUD_CHECK: ${FRAUD_CHECK:-true}
       # Comma-separated keys for the X-API-Key header.
       API_KEYS: ${API_KEYS:-}
     depends_on:

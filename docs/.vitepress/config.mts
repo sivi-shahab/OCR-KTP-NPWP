@@ -28,6 +28,7 @@ export default withMermaid(
             { text: 'Quick start (5 menit)', link: '/guide/quick-start' },
             { text: 'Arsitektur', link: '/guide/arsitektur' },
             { text: 'Referensi API', link: '/guide/api' },
+            { text: 'Deteksi fotokopi & layar', link: '/guide/fraud-check' },
             { text: 'Prompt & batasan output', link: '/guide/prompt' },
           ],
         },

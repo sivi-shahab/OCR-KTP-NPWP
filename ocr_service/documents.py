@@ -20,6 +20,9 @@ class DocumentType:
     response_model: type[BaseModel]
     prompt: str
     log_fields: tuple[str, ...]           # Fields logged after a successful extraction
+    # Share of clearly coloured pixels a genuine document has; less is flagged as a
+    # black-and-white photocopy (see fraud.py). Calibrate on real captures.
+    min_colour_fraction: float
     # Overrides of Settings.max_pixels / Settings.max_new_tokens for larger documents
     max_pixels: int | None = None
     max_new_tokens: int | None = None
@@ -41,6 +44,7 @@ KTP = DocumentType(
     response_model=KTPResponse,
     prompt=KTP_PROMPT,
     log_fields=("NIK", "NAMA"),
+    min_colour_fraction=0.3,  # the light-blue background covers most of the card
 )
 
 NPWP = DocumentType(
@@ -50,6 +54,7 @@ NPWP = DocumentType(
     response_model=NPWPResponse,
     prompt=NPWP_PROMPT,
     log_fields=("NPWP", "NAMA"),
+    min_colour_fraction=0.05,  # mostly white card: only the logo and header are coloured
 )
 
 KK = DocumentType(
@@ -59,6 +64,8 @@ KK = DocumentType(
     response_model=KKResponse,
     prompt=KK_PROMPT,
     log_fields=("NO_KK", "NAMA_KEPALA_KELUARGA"),
+    # White paper with a coloured Garuda/QR at most; genuine b/w TTE prints are flagged too
+    min_colour_fraction=0.02,
     # A KK is an A4 sheet with small table text: it needs more pixels than an ID card, and
     # one JSON object per family member needs far more output tokens.
     max_pixels=3200 * 28 * 28,

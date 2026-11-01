@@ -35,6 +35,9 @@ class Settings:
     # without downtime. Empty disables authentication.
     api_keys: tuple[str, ...] = ()
 
+    # Photocopy / screen-recapture check on /extract/* (flag-only, see fraud.py)
+    fraud_check: bool = True
+
     @classmethod
     def from_env(cls) -> "Settings":
         settings = cls(
@@ -54,6 +57,7 @@ class Settings:
             host=os.getenv("HOST", cls.host),
             port=int(os.getenv("PORT", cls.port)),
             api_keys=tuple(k.strip() for k in os.getenv("API_KEYS", "").split(",") if k.strip()),
+            fraud_check=os.getenv("FRAUD_CHECK", "true").lower() in ("1", "true", "yes"),
         )
         if settings.backend not in BACKENDS:
             raise ValueError(f"INFERENCE_BACKEND must be one of {BACKENDS}, got {settings.backend!r}")

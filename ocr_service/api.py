@@ -17,8 +17,9 @@ from .backends import InferenceBackend, create_backend
 from .config import Settings
 from .documents import DOCUMENTS, DocumentType
 from .extraction import OutputParseError, parse_fields
+from .fraud import check_image
 from .images import ALLOWED_CONTENT_TYPES, InvalidImageError, decode_image, limit_pixels
-from .schemas import Base64ImageRequest, HealthResponse
+from .schemas import Base64ImageRequest, FraudCheck, HealthResponse
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +110,15 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
 
     async def run(request: Request, image: Image.Image):
         backend: InferenceBackend = request.app.state.backend
+        # The fraud check needs the full-resolution image (moiré disappears when downscaled)
+        # and runs on CPU while vLLM reads the document, so it adds almost no latency.
+        fraud_task = (
+            asyncio.create_task(_run_fraud_check(image, document)) if settings.fraud_check else None
+        )
+        ocr_image = await asyncio.to_thread(limit_pixels, image, max_pixels)
         try:
             raw_output = await backend.generate(
-                image, document.prompt, document.json_schema, max_new_tokens
+                ocr_image, document.prompt, document.json_schema, max_new_tokens
             )
             data = parse_fields(raw_output, document.data_model)
         except OutputParseError as exc:
@@ -125,7 +132,12 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
             document.label,
             ", ".join(f"{name}={getattr(data, name)}" for name in document.log_fields),
         )
-        return document.response_model(success=True, data=data, raw_output=raw_output)
+        fraud_check = await fraud_task if fraud_task else None
+        if fraud_check and fraud_check.suspicious:
+            logger.warning("%s fraud check flagged: %s", document.label, fraud_check)
+        return document.response_model(
+            success=True, data=data, raw_output=raw_output, fraud_check=fraud_check
+        )
 
     async def extract(
         request: Request,
@@ -137,10 +149,10 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
             json_schema_extra={"format": "binary"},
         ),
     ):
-        return await run(request, await _read_upload(file, settings, max_pixels))
+        return await run(request, await _read_upload(file, settings))
 
     async def extract_base64(request: Request, body: Base64ImageRequest):
-        return await run(request, await _read_base64(body.image, settings, max_pixels))
+        return await run(request, await _read_base64(body.image, settings))
 
     app.add_api_route(
         f"/extract/{document.key}",
@@ -164,7 +176,16 @@ def _add_extract_route(app: FastAPI, document: DocumentType, settings: Settings)
     )
 
 
-async def _read_upload(file: UploadFile, settings: Settings, max_pixels: int) -> Image.Image:
+async def _run_fraud_check(image: Image.Image, document: DocumentType) -> FraudCheck | None:
+    """Never fails the request: a broken check returns no verdict instead of a 500."""
+    try:
+        return await asyncio.to_thread(check_image, image, document.min_colour_fraction)
+    except Exception:
+        logger.exception("Fraud check failed (%s)", document.key)
+        return None
+
+
+async def _read_upload(file: UploadFile, settings: Settings) -> Image.Image:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=415,
@@ -181,10 +202,10 @@ async def _read_upload(file: UploadFile, settings: Settings, max_pixels: int) ->
         image = await asyncio.to_thread(decode_image, contents)
     except InvalidImageError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return await asyncio.to_thread(limit_pixels, image, max_pixels)
+    return image
 
 
-async def _read_base64(encoded: str, settings: Settings, max_pixels: int) -> Image.Image:
+async def _read_base64(encoded: str, settings: Settings) -> Image.Image:
     # Accept both a bare base64 string and a data URI ("data:image/jpeg;base64,...").
     if encoded.startswith("data:"):
         _, _, encoded = encoded.partition(",")
@@ -205,4 +226,4 @@ async def _read_base64(encoded: str, settings: Settings, max_pixels: int) -> Ima
         image = await asyncio.to_thread(decode_image, contents)
     except InvalidImageError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return await asyncio.to_thread(limit_pixels, image, max_pixels)
+    return image

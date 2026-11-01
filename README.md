@@ -410,6 +410,7 @@ Flag vLLM di `docker-compose.yml` (service `vllm`) sama dengan di `run_vllm.sh`.
 | `MODEL_DIR` | `model/` | Folder bobot model (backend `hf`) |
 | `MODEL_ID` | `Qwen/Qwen2.5-VL-3B-Instruct` | Model Hugging Face yang diunduh ke `MODEL_DIR` jika kosong (backend `hf`) |
 | `API_KEYS` | kosong | Key yang diterima di header `X-API-Key`, dipisah koma. Kosong = `/extract/*` terbuka tanpa autentikasi (ada warning di log) |
+| `FRAUD_CHECK` | `true` | Deteksi fotokopi & foto layar di setiap respons `/extract/*` (field `fraud_check`, hanya penanda). `false` = `fraud_check: null` |
 
 ## API
 
@@ -417,7 +418,7 @@ Dokumentasi interaktif (Swagger): `http://<host>:8070/docs`. Spec mentahnya ada 
 
 Swagger UI disajikan langsung oleh API dari `ocr_service/static/swagger-ui/` (swagger-ui-dist 5.17.14), bukan dari CDN, jadi tetap tampil di jaringan tanpa akses internet. `/redoc` dimatikan karena ReDoc hanya tersedia lewat CDN.
 
-Setiap dokumen punya dua endpoint dengan response yang sama (`{"success", "data", "raw_output"}`). Gambar boleh JPEG, PNG, atau WebP, maksimal 10 MB:
+Setiap dokumen punya dua endpoint dengan response yang sama (`{"success", "data", "raw_output", "fraud_check"}`). Gambar boleh JPEG, PNG, atau WebP, maksimal 10 MB:
 
 | Endpoint | Body |
 |---|---|
@@ -441,6 +442,23 @@ Semua endpoint `/extract/*` wajib mengirim header `X-API-Key` berisi salah satu 
 - Di Swagger: klik **Authorize**, isi key, lalu **Try it out** seperti biasa.
 - Rotasi key tanpa downtime: tambahkan key baru di belakang (`API_KEYS=lama,baru`), `docker compose up -d api`, pindahkan semua client ke key baru, lalu hapus key lama dan jalankan `docker compose up -d api` lagi.
 - Membuat key baru: `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`.
+
+### Deteksi fotokopi & foto layar (`fraud_check`)
+
+Setiap response `/extract/*` membawa `fraud_check`, penanda heuristik (`ocr_service/fraud.py`) untuk fotokopi hitam-putih dan gambar yang difoto dari layar laptop/HP. **Hanya penanda**: OCR tetap berjalan dan request tidak pernah ditolak. Arahkan `suspicious: true` ke review manual.
+
+```json
+"fraud_check": {
+  "suspicious": true,
+  "is_photocopy": false,
+  "is_screen_recapture": true,
+  "photocopy_score": 0.0,
+  "screen_score": 1.0,
+  "signals": ["moire_pattern"]
+}
+```
+
+Ambang baru disetel dengan serangan simulasi, belum dengan foto asli. Penjelasan cara kerja, keterbatasan, dan kalibrasi ada di `docs/guide/fraud-check.md`. Matikan dengan `FRAUD_CHECK=false` (`fraud_check: null`).
 
 ### `POST /extract/ktp`
 
@@ -587,6 +605,7 @@ ocr_service/
 ├── prompts.py          prompt khusus per dokumen (layout kartu + aturan per field)
 ├── extraction.py       parsing output model
 ├── images.py           decode & resize gambar
+├── fraud.py            deteksi fotokopi & foto layar (heuristik, numpy)
 ├── api.py              route FastAPI (1 endpoint per dokumen) & mapping error HTTP
 ├── static/swagger-ui/   file Swagger UI untuk /docs (tanpa CDN)
 └── backends/

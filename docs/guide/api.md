@@ -56,7 +56,8 @@ Semua endpoint ekstraksi membalas dengan bentuk yang sama:
 {
   "success": true,
   "data": { "...": "field sesuai dokumen" },
-  "raw_output": "teks JSON mentah dari model"
+  "raw_output": "teks JSON mentah dari model",
+  "fraud_check": { "suspicious": false, "is_photocopy": false, "is_screen_recapture": false, "...": "..." }
 }
 ```
 
@@ -65,6 +66,7 @@ Semua endpoint ekstraksi membalas dengan bentuk yang sama:
 | `success` | `true` jika ekstraksi berhasil |
 | `data` | Field hasil ekstraksi. Isinya tergantung dokumen: [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk) |
 | `raw_output` | Output mentah model, berguna untuk debugging |
+| `fraud_check` | Penanda fotokopi / foto dari layar. Hanya penanda, tidak pernah menolak request. Lihat [Deteksi fotokopi & layar](/guide/fraud-check) |
 
 Field yang tidak terbaca dikembalikan sebagai string kosong `""`. Semua key selalu ada di `data`.
 

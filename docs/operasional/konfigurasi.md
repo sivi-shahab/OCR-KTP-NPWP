@@ -29,6 +29,7 @@ cp .env.example .env && chmod 600 .env   # lalu isi API_KEYS
 | `MODEL_DIR` | `model/` | Folder bobot model (backend `hf`) |
 | `MODEL_ID` | `Qwen/Qwen2.5-VL-3B-Instruct` | Model Hugging Face yang diunduh ke `MODEL_DIR` jika kosong (backend `hf`) |
 | `API_KEYS` | kosong | Key yang diterima di header `X-API-Key`, dipisah koma. Kosong = `/extract/*` terbuka tanpa autentikasi (ada warning di log) |
+| `FRAUD_CHECK` | `true` | Deteksi fotokopi & foto layar di setiap respons `/extract/*` (field `fraud_check`, hanya penanda). `false` = `fraud_check: null` |
 
 ## Variabel Docker Compose
 

@@ -16,6 +16,7 @@ ocr_service/
 ├── prompts.py          prompt khusus per dokumen (layout kartu + aturan per field)
 ├── extraction.py       parsing output model
 ├── images.py           decode & resize gambar
+├── fraud.py            deteksi fotokopi & foto layar (heuristik, numpy)
 ├── api.py              route FastAPI (1 endpoint per dokumen) & mapping error HTTP
 ├── static/swagger-ui/  file Swagger UI untuk /docs (tanpa CDN)
 └── backends/
@@ -35,6 +36,7 @@ backup/                 versi kode sebelumnya (untuk rollback)
 | `prompts.py` | Teks prompt per dokumen; daftar key JSON di akhir dibuat dari model data |
 | `extraction.py` | Mengambil objek JSON dari output model dan memvalidasinya ke model data |
 | `images.py` | Decode bytes ke gambar dan memperkecil ke batas piksel |
+| `fraud.py` | Deteksi fotokopi hitam-putih (porsi piksel berwarna) dan foto layar (puncak moiré di spektrum FFT). Berjalan paralel dengan OCR, hasilnya di field `fraud_check` |
 | `backends/` | Abstraksi inference: `generate(image, prompt, json_schema, max_new_tokens)` dan `is_ready()` |
 
 Menambah dokumen atau field: lihat [Menambah dokumen baru](/tutorial/dokumen-baru).
