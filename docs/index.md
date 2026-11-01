@@ -35,6 +35,11 @@ features:
     details: Header KK plus daftar anggota keluarga. Baris tabel atas dan bawah dengan nomor yang sama digabung menjadi satu objek per anggota.
     link: /dokumen/kk
     linkText: Field KK
+  - icon: 🛡️
+    title: Deteksi fotokopi & foto layar
+    details: Setiap respons membawa fraud_check yang menandai fotokopi hitam-putih dan dokumen yang difoto dari layar laptop/HP (pola moiré). Hanya penanda, OCR tetap berjalan.
+    link: /guide/fraud-check
+    linkText: Fraud check
   - icon: 🧱
     title: Output selalu JSON valid
     details: Structured output vLLM memaksa model mengikuti JSON schema. Semua key selalu ada, enum dan pattern (NIK 16 digit, jenis kelamin) dijaga saat decoding.
@@ -86,8 +91,9 @@ features:
 
 1. Client mengirim foto dokumen ke endpoint sesuai jenisnya, dengan header `X-API-Key`.
 2. API memvalidasi tipe dan ukuran file, memperkecil gambar, lalu mengirimnya ke vLLM bersama prompt dan JSON schema dokumen itu.
-3. vLLM menjalankan Qwen2.5-VL di GPU dan hanya boleh menghasilkan JSON yang cocok dengan schema.
-4. API mem-parse hasilnya dan membalas `{"success": true, "data": {...}, "raw_output": "..."}`.
+3. Bersamaan dengan itu, API memeriksa gambar resolusi penuh di CPU: fotokopi hitam-putih atau difoto dari layar?
+4. vLLM menjalankan Qwen2.5-VL di GPU dan hanya boleh menghasilkan JSON yang cocok dengan schema.
+5. API mem-parse hasilnya dan membalas `{"success": true, "data": {...}, "raw_output": "...", "fraud_check": {...}}`.
 
 Detail lengkapnya ada di [Arsitektur](/guide/arsitektur).
 
@@ -100,6 +106,7 @@ Detail lengkapnya ada di [Arsitektur](/guide/arsitektur).
 | Tahu field apa saja yang dikembalikan | [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk) |
 | Menjalankan dan memelihara server | [Deployment Docker Compose](/operasional/deployment) |
 | Memperbaiki field yang salah baca | [Prompt & batasan output](/guide/prompt) |
+| Menangani dokumen fotokopi / foto layar | [Deteksi fotokopi & layar](/guide/fraud-check) |
 | Menambah jenis dokumen baru | [Menambah dokumen baru](/tutorial/dokumen-baru) |
 | Mengatasi error | [Troubleshooting](/operasional/troubleshooting) |
 

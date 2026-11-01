@@ -71,10 +71,39 @@ Ambang disetel memakai **serangan simulasi** (gambar sintetis yang dijadikan hit
 
 Sebagai acuan dari literatur (dokumen tiruan, dataset DLC-2021): metode moiré klasik mencapai presisi ±95% / recall ±90% untuk foto layar, dan metode warna ±99% / ±85% untuk fotokopi hitam-putih. Di data nyata dengan perangkat yang beragam, hasilnya biasanya lebih rendah.
 
-Langkah berikutnya yang disarankan:
+## Kalibrasi
 
-1. Kumpulkan contoh nyata (KTP/NPWP/KK asli, fotokopi, dan foto layar dari berbagai HP dan layar), lalu ukur skor dan setel ambang di `fraud.py` / `documents.py`.
-2. Jika dataset sudah cukup, tambahkan classifier terlatih (misalnya DINOv2/EfficientNet yang di-fine-tune). Model vision-language untuk OCR (Qwen-VL) **tidak** cocok sebagai detektor: penelitian menunjukkan error zero-shot 25–35%.
+Ambang ada di kode, bukan env var:
+
+| Ambang | Lokasi | Efek |
+|---|---|---|
+| `min_colour_fraction` per dokumen | `documents.py` | Turunkan jika dokumen asli sering ditandai fotokopi; naikkan jika fotokopi lolos |
+| `_SATURATION_MIN` (`0.15`) | `fraud.py` | Seberapa berwarna sebuah piksel agar dihitung "berwarna" |
+| `_PEAK_RANGE` (`2.0`–`3.0`) | `fraud.py` | Tinggi puncak moiré yang dipetakan ke `screen_score` 0–1. Naikkan jika foto biasa ditandai layar |
+| `FLAG_THRESHOLD` (`0.5`) | `fraud.py` | Skor minimal agar `is_photocopy` / `is_screen_recapture` bernilai `true` |
+
+Cara menyetel:
+
+1. Kumpulkan contoh nyata per dokumen, misalnya 20–50 per kelompok: **asli**, **fotokopi**, dan **foto dari layar** (beberapa HP dan laptop, jarak dan sudut berbeda). Simpan di folder terpisah per kelompok.
+2. Ukur nilai mentahnya dari root repo:
+
+   ```bash
+   python3 - <<'PY'
+   import glob
+   from PIL import Image
+   from ocr_service import fraud
+   for path in sorted(glob.glob("sampel/*/*.jpg")):
+       img = Image.open(path).convert("RGB")
+       print(f"{path:50s} warna={fraud._colour_fraction(img):.3f} puncak={fraud._spectral_peak(img):.2f}")
+   PY
+   ```
+
+3. Pilih ambang yang memisahkan kelompok asli dari serangan, sesuai toleransi Anda terhadap salah tolak dan salah lolos.
+4. Ubah nilainya, lalu deploy dengan `docker compose up -d --build api`.
+
+## Langkah berikutnya
+
+Jika dataset sudah cukup (ratusan contoh per kelompok), tambahkan classifier terlatih, misalnya DINOv2/EfficientNet yang di-fine-tune, sebagai detektor ketiga. Literatur melaporkan error 1–4% pada data yang sejenis dengan data latih. Model vision-language untuk OCR (Qwen-VL) **tidak** cocok sebagai detektor: penelitian menunjukkan error zero-shot 25–35%.
 
 ## Mematikan
 

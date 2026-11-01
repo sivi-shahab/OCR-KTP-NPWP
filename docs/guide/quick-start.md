@@ -73,7 +73,15 @@ Contoh respons KTP:
     "KEWARGANEGARAAN": "WNI",
     "BERLAKU_HINGGA": "SEUMUR HIDUP"
   },
-  "raw_output": "{\"NIK\":\"3174010000000901\", ...}"
+  "raw_output": "{\"NIK\":\"3174010000000901\", ...}",
+  "fraud_check": {
+    "suspicious": false,
+    "is_photocopy": false,
+    "is_screen_recapture": false,
+    "photocopy_score": 0.0,
+    "screen_score": 0.0,
+    "signals": []
+  }
 }
 ```
 

@@ -28,6 +28,17 @@
 | Anggota KK tertukar kolom atau kurang satu | Foto miring/buram atau terpotong. Minta foto seluruh lembar yang tegak dan tajam |
 | Perubahan prompt tidak berpengaruh | Kode di-copy ke image; jalankan dengan `--build`: `docker compose up -d --build api` |
 
+## Fraud check
+
+| Gejala | Penyebab / solusi |
+|---|---|
+| KTP/NPWP asli ditandai `is_photocopy` | Foto terlalu gelap/terang, cahaya kuning kuat, atau kartu hanya mengisi sebagian kecil tengah gambar. Minta foto ulang yang terang dan kartunya memenuhi frame. Jika sering terjadi, turunkan `min_colour_fraction` di `documents.py` ([Kalibrasi](/guide/fraud-check#kalibrasi)) |
+| KK asli ditandai `is_photocopy` | Wajar untuk KK TTE yang dicetak hitam-putih. Lihat [catatan KK](/dokumen/kk#catatan) |
+| Foto dari layar tidak terdeteksi | Gambar sudah diperkecil/dikompres sebelum dikirim, layar sangat tajam (OLED ber-PPI tinggi), atau jarak kamera menghilangkan moiré. Pastikan client mengirim foto asli |
+| Foto biasa ditandai `is_screen_recapture` | Ada pola periodik kuat di gambar (mis. kain bergaris, kisi). Lihat `screen_score` dan naikkan `_PEAK_RANGE` di `fraud.py` jika berulang |
+| `fraud_check: null` | `FRAUD_CHECK=false`, atau pengecekan error. Cek `docker compose logs api \| grep "Fraud check failed"` |
+| Mencari dokumen yang ditandai di log | `docker compose logs api \| grep "fraud check flagged"` |
+
 ## Client
 
 | Gejala | Penyebab / solusi |

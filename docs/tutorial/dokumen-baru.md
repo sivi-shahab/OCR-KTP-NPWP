@@ -20,6 +20,7 @@ class SIMResponse(BaseModel):
     success: bool
     data: SIMData
     raw_output: str
+    fraud_check: FraudCheck | None = None
 ```
 
 - Pakai `_constrained(enum=...)` atau `_constrained(pattern=...)` untuk field dengan nilai terbatas. String kosong `""` otomatis tetap diizinkan.
@@ -45,10 +46,15 @@ SIM = DocumentType(
     response_model=SIMResponse,
     prompt=SIM_PROMPT,
     log_fields=("NO_SIM", "NAMA"),   # field yang dicatat di log setelah sukses
+    min_colour_fraction=0.2,         # porsi piksel berwarna minimal kartu asli (fraud check)
 )
 
 DOCUMENTS: tuple[DocumentType, ...] = (KTP, NPWP, KK, SIM)
 ```
+
+### Ambang fraud check
+
+`min_colour_fraction` wajib diisi. Nilainya adalah porsi piksel yang jelas berwarna pada foto dokumen **asli**; di bawah separuh nilai itu gambar ditandai sebagai fotokopi hitam-putih. Ukur dari beberapa foto asli dengan `fraud._colour_fraction(image)`, lalu pakai kira-kira nilai terendahnya. Lihat [Kalibrasi](/guide/fraud-check#kalibrasi).
 
 ### Dokumen besar
 

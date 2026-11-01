@@ -49,13 +49,17 @@ sequenceDiagram
     A->>A: Cek API key (401)
     A->>A: Validasi content-type (415) & ukuran ≤ 10 MB (413)
     A->>A: Decode gambar (400 jika rusak)
-    A->>A: Resize ke batas piksel dokumen & encode JPEG base64
-    A->>V: chat/completions: gambar + prompt KTP + JSON schema KTPData
-    V->>G: Vision encoder + generate token (greedy)
-    G-->>V: Teks JSON
-    V-->>A: {"NIK":"...","NAMA":"...",...}
+    par Fraud check (thread CPU, resolusi penuh)
+        A->>A: fraud.py: porsi piksel berwarna + puncak moiré (FFT)
+    and OCR
+        A->>A: Resize ke batas piksel dokumen & encode JPEG base64
+        A->>V: chat/completions: gambar + prompt KTP + JSON schema KTPData
+        V->>G: Vision encoder + generate token (greedy)
+        G-->>V: Teks JSON
+        V-->>A: {"NIK":"...","NAMA":"...",...}
+    end
     A->>A: Parse JSON → KTPData (422 jika gagal)
-    A-->>C: 200 {"success":true,"data":{...},"raw_output":"..."}
+    A-->>C: 200 {"success":true,"data":{...},"raw_output":"...","fraud_check":{...}}
 ```
 
 Untuk NPWP dan KK alurnya sama; yang berbeda hanya prompt, schema, dan batasnya:
@@ -65,6 +69,8 @@ Untuk NPWP dan KK alurnya sama; yang berbeda hanya prompt, schema, dan batasnya:
 | KTP | `1003520` (±1 MP, `MAX_PIXELS`) | `512` |
 | NPWP | `1003520` (±1 MP, `MAX_PIXELS`) | `512` |
 | KK | `2508800` (±2.5 MP) | `3072` |
+
+Fraud check memakai gambar **sebelum** diperkecil, karena pola moiré layar hilang saat gambar di-resize. Pemeriksaan berjalan di thread terpisah selama vLLM bekerja, jadi tidak menambah waktu respons. Jika gagal, `fraud_check` bernilai `null` dan OCR tetap berhasil. Detail di [Deteksi fotokopi & layar](/guide/fraud-check).
 
 KK berupa lembar A4 dengan teks tabel kecil dan output yang panjang (satu objek per anggota keluarga), sehingga butuh resolusi dan token lebih banyak. Karena itu vLLM dijalankan dengan `--max-model-len 8192`.
 
@@ -80,6 +86,7 @@ flowchart TD
         prompts["prompts.py<br/>KTP_PROMPT · NPWP_PROMPT · KK_PROMPT"]
         extraction["extraction.py<br/>parse_fields"]
         images["images.py<br/>decode · limit_pixels"]
+        fraud["fraud.py<br/>check_image (fotokopi · foto layar)"]
         schemas["schemas.py<br/>KTPData · NPWPData · KKData"]
         config["config.py<br/>Settings dari env var"]
 
@@ -93,6 +100,7 @@ flowchart TD
     api --> docs
     api --> extraction
     api --> images
+    api --> fraud
     api --> config
     api --> base
     docs --> schemas

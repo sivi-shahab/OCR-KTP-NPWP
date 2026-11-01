@@ -130,9 +130,41 @@ else:
 
 Daftar lengkap kode ada di [Referensi API](/guide/api#kode-http).
 
+## Menangani `fraud_check`
+
+API **tidak menolak** dokumen yang dicurigai; keputusan ada di aplikasi Anda. Pola yang disarankan: data tetap dipakai, tetapi pengajuan diarahkan ke review manual.
+
+```python
+body = resp.json()
+data = body["data"]
+fraud = body.get("fraud_check")  # None jika FRAUD_CHECK=false atau pengecekan gagal
+
+if fraud is None:
+    status = "perlu_review"            # tidak ada penilaian: jangan anggap aman
+elif fraud["suspicious"]:
+    status = "perlu_review"
+    alasan = fraud["signals"]          # mis. ["moire_pattern"] atau ["low_colour"]
+else:
+    status = "lolos_otomatis"
+```
+
+Skor (`photocopy_score`, `screen_score`, 0–1) dikembalikan apa adanya, jadi Anda boleh memakai ambang sendiri, misalnya:
+
+```python
+# Hanya foto layar yang sangat jelas yang ditolak; sisanya review manual
+if fraud and fraud["screen_score"] >= 0.9:
+    minta_foto_ulang("Foto dokumen fisik secara langsung, bukan dari layar.")
+```
+
+::: tip Pesan ke pengguna
+Jika `is_screen_recapture: true`, minta pengguna **memotret kartu fisik secara langsung**. Jika `is_photocopy: true` (KTP/NPWP), minta foto **kartu asli**, bukan fotokopi. Untuk KK, cetakan hitam-putih KK TTE bisa sah. Lihat [catatan KK](/dokumen/kk#catatan).
+:::
+
+Simpan `fraud_check` bersama data pengajuan supaya ambangnya bisa dievaluasi dan disetel ulang nanti.
+
 ## Tips
 
 - **Timeout:** KTP/NPWP ±5–7 detik, KK ±30 detik atau lebih. Set timeout client minimal 120 detik supaya request yang antre tidak putus.
 - **Request paralel itu aman.** vLLM mem-batch request bersamaan, sampai 8 sekaligus; sisanya antre.
-- **Kecilkan gambar di client** jika bandwidth terbatas. API toh memperkecil KTP/NPWP ke ±1 MP; mengirim foto 12 MP hanya membuang waktu upload.
+- **Kirim foto asli dari kamera, jangan diperkecil atau dikompres ulang.** API memang memperkecil gambar untuk OCR, tetapi [fraud check](/guide/fraud-check) memakai resolusi penuh: pola moiré foto layar hilang jika gambar di-resize di client. Batas upload tetap 10 MB; jika harus mengecilkan, sisakan sisi panjang minimal ±2000 px dan kualitas JPEG ≥ 90.
 - **Validasi tetap di aplikasi.** Field kosong (`""`) berarti tidak terbaca. Untuk data penting, tampilkan hasil ke pengguna untuk dikonfirmasi.

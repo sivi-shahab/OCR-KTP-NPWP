@@ -33,7 +33,15 @@ curl -H "X-API-Key: <key>" -F "file=@npwp.jpg;type=image/jpeg" \
     "KPP": "KPP PRATAMA JAKARTA KEBAYORAN BARU SATU",
     "TANGGAL_TERDAFTAR": "12/03/2015"
   },
-  "raw_output": "{\"NPWP\":\"01.234.567.8-901.000\", ...}"
+  "raw_output": "{\"NPWP\":\"01.234.567.8-901.000\", ...}",
+  "fraud_check": {
+    "suspicious": false,
+    "is_photocopy": false,
+    "is_screen_recapture": false,
+    "photocopy_score": 0.0,
+    "screen_score": 0.0,
+    "signals": []
+  }
 }
 ```
 
@@ -42,4 +50,5 @@ curl -H "X-API-Key: <key>" -F "file=@npwp.jpg;type=image/jpeg" \
 - Nomor NPWP dikembalikan **sesuai format di kartu**. Kartu lama memakai titik dan strip; untuk menormalkan, hapus semua karakter non-digit di sisi aplikasi.
 - `NIK` hanya terisi jika memang tercetak di kartu. Prompt melarang model menyalin nomor NPWP ke `NIK`.
 - Jika `NPWP` selalu `""` padahal terbaca jelas, kemungkinan formatnya tidak cocok dengan pattern di `schemas.py`. Lihat [Troubleshooting](/operasional/troubleshooting).
+- `fraud_check` menandai fotokopi hitam-putih dan foto dari layar. Kartu NPWP dominan putih, jadi ambang warnanya rendah (`0.05`) dan **belum dikalibrasi dengan kartu asli**: perlakukan `is_photocopy` sebagai petunjuk review. Lihat [Deteksi fotokopi & layar](/guide/fraud-check).
 - Waktu proses: ±4.5–5 detik per request (field lebih sedikit dari KTP).

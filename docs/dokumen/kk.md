@@ -99,7 +99,15 @@ Respons (dipersingkat menjadi satu anggota):
       }
     ]
   },
-  "raw_output": "{\"NO_KK\":\"3201012304150007\", ...}"
+  "raw_output": "{\"NO_KK\":\"3201012304150007\", ...}",
+  "fraud_check": {
+    "suspicious": false,
+    "is_photocopy": false,
+    "is_screen_recapture": false,
+    "photocopy_score": 0.0,
+    "screen_score": 0.0,
+    "signals": []
+  }
 }
 ```
 
@@ -118,4 +126,5 @@ Karena itu vLLM dijalankan dengan `--max-model-len 8192` dan `max_pixels` `25088
 
 - **Lebih lambat dari kartu:** ±30 detik untuk KK dengan 3 anggota, bertambah untuk setiap anggota. Set timeout client minimal 60–120 detik.
 - **Foto seluruh lembar, tegak, dan tajam.** Teks tabel KK kecil; foto miring atau buram paling sering membuat nilai bergeser ke kolom/baris tetangga.
+- **`fraud_check` dan KK hitam-putih:** KK versi TTE (dengan QR code) sah dicetak sendiri di kertas biasa, sering hitam-putih. Cetakan seperti itu **akan ditandai `is_photocopy: true`** meskipun asli. Untuk KK, `is_screen_recapture` adalah sinyal yang lebih kuat. Lihat [Deteksi fotokopi & layar](/guide/fraud-check).
 - Panjang `ANGGOTA_KELUARGA` mengikuti jumlah baris terisi di KK. Baris kosong tidak dikembalikan.

@@ -49,7 +49,15 @@ curl -H "X-API-Key: <key>" -F "file=@ktp.jpg;type=image/jpeg" \
     "KEWARGANEGARAAN": "WNI",
     "BERLAKU_HINGGA": "SEUMUR HIDUP"
   },
-  "raw_output": "{\"NIK\":\"3174010000000901\", ...}"
+  "raw_output": "{\"NIK\":\"3174010000000901\", ...}",
+  "fraud_check": {
+    "suspicious": false,
+    "is_photocopy": false,
+    "is_screen_recapture": false,
+    "photocopy_score": 0.0,
+    "screen_score": 0.0,
+    "signals": []
+  }
 }
 ```
 
@@ -57,5 +65,6 @@ curl -H "X-API-Key: <key>" -F "file=@ktp.jpg;type=image/jpeg" \
 
 - `TTL` dikembalikan apa adanya (tempat dan tanggal dalam satu string). Pisahkan di sisi aplikasi jika perlu.
 - `GOL_DARAH` sering kosong (`-`) di kartu. Prompt menjelaskan posisinya supaya baris lain tidak bergeser.
+- `fraud_check` menandai fotokopi hitam-putih (latar biru KTP hilang) dan foto dari layar. Lihat [Deteksi fotokopi & layar](/guide/fraud-check).
 - Waktu proses: ±7 detik per request. Lihat [Performa](/operasional/performa).
 - Field bergeser atau salah tempat? Lihat [Prompt & batasan output](/guide/prompt).
