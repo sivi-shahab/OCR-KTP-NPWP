@@ -7,6 +7,7 @@ Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas I
 | KTP | `POST /extract/ktp` |
 | NPWP | `POST /extract/npwp` |
 | Kartu Keluarga (KK) | `POST /extract/kk` |
+| Buku Tabungan (cover) | `POST /extract/buku-tabungan` |
 
 ```
                               ┌────────────────────────────┐      ┌─────────────────────────────┐
@@ -511,6 +512,16 @@ Response:
   "raw_output": "{\"NPWP\":\"01.234.567.8-901.000\", ...}"
 }
 ```
+
+### `POST /extract/buku-tabungan`
+
+Cover / halaman identitas buku tabungan bank mana pun (satu prompt untuk semua bank). Field: `BANK`, `NAMA_NASABAH`, `NO_REKENING` (hanya digit, 8–18; pemisah dihapus), `JENIS_TABUNGAN`, `CABANG`, `KODE_CABANG`. Field yang tidak terbaca = `""`.
+
+```bash
+curl -H "X-API-Key: <key>" -F "file=@buku.jpg;type=image/jpeg" http://localhost:8070/extract/buku-tabungan
+```
+
+> Belum diuji dengan foto buku tabungan asli. Riset menunjukkan di produk sejenis (iApp, Thailand) nomor rekening dan nama bank paling andal (±97–99%), sedangkan nama pemilik (±53%) dan cabang (±63%) lemah: anggap dua field itu pendukung dan verifikasi di sisi aplikasi. Panjang digit per bank tidak divalidasi karena belum ada sumber resmi yang terverifikasi. `fraud_check` memakai ambang warna `0.05` yang belum dikalibrasi. Nama dan nomor rekening tidak ditulis ke log; `raw_output` tetap berisi semuanya, jadi jangan menyimpannya tanpa dasar pemrosesan (UU PDP).
 
 ### `POST /extract/kk`
 

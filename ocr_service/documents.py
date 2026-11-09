@@ -78,7 +78,7 @@ BUKU_TABUNGAN = DocumentType(
     data_model=BukuTabunganData,
     response_model=BukuTabunganResponse,
     prompt=BUKU_TABUNGAN_PROMPT,
-    log_fields=("BANK", "NAMA_NASABAH"),
+    log_fields=("BANK",),  # account holder name/number are financial PII: keep them out of logs
     # Covers are glossy and colourful (logos, holograms) but designs vary a lot per bank.
     # Not calibrated on real captures yet: raise only after measuring genuine covers.
     min_colour_fraction=0.05,

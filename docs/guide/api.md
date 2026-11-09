@@ -10,6 +10,8 @@ Base URL: `http://<host>:8070`
 | `POST` | `/extract/ktp/base64` | `X-API-Key` | KTP, JSON base64 |
 | `POST` | `/extract/npwp` | `X-API-Key` | NPWP, multipart |
 | `POST` | `/extract/npwp/base64` | `X-API-Key` | NPWP, JSON base64 |
+| `POST` | `/extract/buku-tabungan` | `X-API-Key` | Cover buku tabungan, multipart |
+| `POST` | `/extract/buku-tabungan/base64` | `X-API-Key` | Cover buku tabungan, JSON base64 |
 | `POST` | `/extract/kk` | `X-API-Key` | Kartu Keluarga, multipart |
 | `POST` | `/extract/kk/base64` | `X-API-Key` | Kartu Keluarga, JSON base64 |
 | `GET` | `/health` | — | Status API dan koneksi ke vLLM |
@@ -64,7 +66,7 @@ Semua endpoint ekstraksi membalas dengan bentuk yang sama:
 | Field | Keterangan |
 |---|---|
 | `success` | `true` jika ekstraksi berhasil |
-| `data` | Field hasil ekstraksi. Isinya tergantung dokumen: [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk) |
+| `data` | Field hasil ekstraksi. Isinya tergantung dokumen: [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk) · [Buku Tabungan](/dokumen/buku-tabungan) |
 | `raw_output` | Output mentah model, berguna untuk debugging |
 | `fraud_check` | Penanda fotokopi / foto dari layar. Hanya penanda, tidak pernah menolak request. Lihat [Deteksi fotokopi & layar](/guide/fraud-check) |
 

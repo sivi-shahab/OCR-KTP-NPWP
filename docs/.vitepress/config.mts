@@ -37,6 +37,7 @@ export default withMermaid(
           items: [
             { text: 'KTP', link: '/dokumen/ktp' },
             { text: 'NPWP', link: '/dokumen/npwp' },
+            { text: 'Buku Tabungan', link: '/dokumen/buku-tabungan' },
             { text: 'Kartu Keluarga (KK)', link: '/dokumen/kk' },
           ],
         },
