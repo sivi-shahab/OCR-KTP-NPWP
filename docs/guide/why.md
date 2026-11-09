@@ -6,14 +6,14 @@ OCR API memakai model **vision-language** (Qwen2.5-VL-3B-Instruct) yang membaca 
 
 - **Tidak ada post-processing per kartu.** Model diberi tahu tata letak kartu lewat prompt dan mengisi field langsung.
 - **Output terjamin bentuknya.** vLLM menjalankan *constrained decoding* dengan JSON schema, jadi respons selalu JSON valid, semua key selalu ada, dan field seperti `JENIS_KELAMIN` hanya bisa berisi nilai yang diizinkan.
-- **Satu service untuk banyak dokumen.** KTP, NPWP, dan Kartu Keluarga memakai model dan server yang sama, dibedakan per endpoint.
+- **Satu service untuk banyak dokumen.** KTP, NPWP, Kartu Keluarga, dan cover buku tabungan memakai model dan server yang sama, dibedakan per endpoint.
 - **Berjalan on-premise.** Model dan data tidak keluar dari server. Tidak ada panggilan ke layanan cloud.
 
 ## Kapan cocok dipakai
 
 | Cocok | Kurang cocok |
 |---|---|
-| Onboarding nasabah / pengisian form otomatis dari foto KTP, NPWP, KK | Verifikasi keaslian dokumen (API tidak mendeteksi pemalsuan) |
+| Onboarding nasabah / pengisian form otomatis dari foto KTP, NPWP, KK, cover buku tabungan | Verifikasi keaslian dokumen (API tidak mendeteksi pemalsuan) |
 | Foto dari kamera ponsel atau hasil scan | Foto sangat buram, terpotong, atau sangat miring |
 | Volume sedang dengan beberapa request bersamaan | Throughput sangat tinggi (ratusan request per detik) di satu GPU |
 

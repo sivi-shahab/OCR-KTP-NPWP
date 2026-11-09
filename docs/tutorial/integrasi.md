@@ -1,6 +1,6 @@
 # Integrasi dari aplikasi
 
-Tutorial ini menunjukkan cara memanggil OCR API dari aplikasi lain. Semua contoh memakai endpoint KTP; untuk dokumen lain cukup ganti `ktp` dengan `npwp` atau `kk`.
+Tutorial ini menunjukkan cara memanggil OCR API dari aplikasi lain. Semua contoh memakai endpoint KTP; untuk dokumen lain cukup ganti `ktp` dengan `npwp`, `kk`, atau `buku-tabungan`.
 
 ## Yang dibutuhkan
 
@@ -164,7 +164,7 @@ Simpan `fraud_check` bersama data pengajuan supaya ambangnya bisa dievaluasi dan
 
 ## Tips
 
-- **Timeout:** KTP/NPWP ±5–7 detik, KK ±30 detik atau lebih. Set timeout client minimal 120 detik supaya request yang antre tidak putus.
+- **Timeout:** KTP/NPWP/Buku Tabungan ±5–7 detik, KK ±30 detik atau lebih. Set timeout client minimal 120 detik supaya request yang antre tidak putus.
 - **Request paralel itu aman.** vLLM mem-batch request bersamaan, sampai 8 sekaligus; sisanya antre.
 - **Kirim foto asli dari kamera, jangan diperkecil atau dikompres ulang.** API memang memperkecil gambar untuk OCR, tetapi [fraud check](/guide/fraud-check) memakai resolusi penuh: pola moiré foto layar hilang jika gambar di-resize di client. Batas upload tetap 10 MB; jika harus mengecilkan, sisakan sisi panjang minimal ±2000 px dan kualitas JPEG ≥ 90.
 - **Validasi tetap di aplikasi.** Field kosong (`""`) berarti tidak terbaca. Untuk data penting, tampilkan hasil ke pengguna untuk dikonfirmasi.

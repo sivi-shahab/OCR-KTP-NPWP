@@ -22,9 +22,9 @@ cp .env.example .env && chmod 600 .env   # lalu isi API_KEYS
 | `VLLM_URL` | `http://127.0.0.1:8071` | Alamat server vLLM (di compose: `http://vllm:8071`) |
 | `VLLM_MODEL` | `qwen-ktp` | Nama model di server vLLM (`--served-model-name`) |
 | `VLLM_TIMEOUT` | `120` | Timeout request ke vLLM (detik) |
-| `MIN_PIXELS` / `MAX_PIXELS` | `200704` / `1003520` | Batas resolusi gambar KTP/NPWP. Naikkan `MAX_PIXELS` jika teks kecil salah baca |
+| `MIN_PIXELS` / `MAX_PIXELS` | `200704` / `1003520` | Batas resolusi gambar KTP/NPWP/Buku Tabungan. Naikkan `MAX_PIXELS` jika teks kecil salah baca |
 | `VISION_MAX_PIXELS` | `2508800` | Batas atas vision processor (backend `hf`); minimal sebesar batas piksel KK |
-| `MAX_NEW_TOKENS` | `512` | Batas token output KTP/NPWP |
+| `MAX_NEW_TOKENS` | `512` | Batas token output KTP/NPWP/Buku Tabungan |
 | `MAX_UPLOAD_MB` | `10` | Ukuran maksimal gambar yang diupload |
 | `MODEL_DIR` | `model/` | Folder bobot model (backend `hf`) |
 | `MODEL_ID` | `Qwen/Qwen2.5-VL-3B-Instruct` | Model Hugging Face yang diunduh ke `MODEL_DIR` jika kosong (backend `hf`) |
@@ -49,7 +49,7 @@ Batas berikut diatur di kode (`documents.py`), bukan lewat env var:
 
 | Dokumen | `max_pixels` | `max_new_tokens` |
 |---|---|---|
-| KTP, NPWP | `MAX_PIXELS` (default `1003520`) | `MAX_NEW_TOKENS` (default `512`) |
+| KTP, NPWP, Buku Tabungan | `MAX_PIXELS` (default `1003520`) | `MAX_NEW_TOKENS` (default `512`) |
 | KK | `2508800` | `3072` |
 
 ## Menyelaraskan API dan vLLM

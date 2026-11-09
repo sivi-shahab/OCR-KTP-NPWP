@@ -50,6 +50,12 @@ curl -H "X-API-Key: <key>" \
   http://localhost:8070/extract/kk
 ```
 
+```bash [Buku Tabungan]
+curl -H "X-API-Key: <key>" \
+  -F "file=@buku.jpg;type=image/jpeg" \
+  http://localhost:8070/extract/buku-tabungan
+```
+
 :::
 
 Contoh respons KTP:
@@ -93,4 +99,4 @@ Buka `http://<host>:8070/docs`, klik **Authorize**, isi API key, lalu pilih endp
 
 - [Integrasi dari aplikasi](/tutorial/integrasi): contoh Python, JavaScript, dan Java
 - [Referensi API](/guide/api): semua endpoint dan kode HTTP
-- Field lengkap per dokumen: [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk)
+- Field lengkap per dokumen: [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk) · [Buku Tabungan](/dokumen/buku-tabungan)

@@ -1,6 +1,6 @@
 # Deteksi fotokopi & foto layar
 
-Setiap respons `/extract/ktp`, `/extract/npwp`, dan `/extract/kk` (termasuk varian `/base64`) membawa field `fraud_check`. Field ini menandai gambar yang kemungkinan:
+Setiap respons `/extract/ktp`, `/extract/npwp`, `/extract/kk`, dan `/extract/buku-tabungan` (termasuk varian `/base64`) membawa field `fraud_check`. Field ini menandai gambar yang kemungkinan:
 
 - **fotokopi hitam-putih** dari dokumen berwarna, atau
 - **foto dari layar** laptop/HP (dokumen ditampilkan di layar lalu difoto).
@@ -52,6 +52,7 @@ Fotokopi hitam-putih menghilangkan warna kartu. Detektor menghitung porsi piksel
 |---|---|---|
 | KTP | `0.30` | Latar biru muda menutupi sebagian besar kartu |
 | NPWP | `0.05` | Kartu dominan putih; hanya logo dan header yang berwarna |
+| Buku Tabungan | `0.05` | Desain tiap bank berbeda. **Belum dikalibrasi dengan cover asli**; perlakukan sebagai petunjuk review |
 | KK | `0.02` | Kertas putih. **KK TTE yang dicetak hitam-putih juga akan ditandai** |
 
 Keterbatasan: fotokopi **berwarna** tidak terdeteksi. Begitu juga fotokopi yang difoto di atas latar berwarna yang memenuhi tengah gambar.

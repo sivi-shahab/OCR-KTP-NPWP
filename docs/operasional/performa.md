@@ -6,6 +6,7 @@ Angka referensi, diukur dengan gambar sintetis di GPU NVIDIA L40S (vGPU 24 GB, d
 |---|---|
 | 1 request KTP, mode vLLM | ±7 detik |
 | 1 request NPWP, mode vLLM | ±4.5–5 detik (field lebih sedikit) |
+| 1 request Buku Tabungan (6 field), mode vLLM | ±2.4 detik pada satu gambar sintetis (belum diukur dengan cover asli) |
 | 1 request KK (3 anggota), mode vLLM | ±30 detik, bertambah per anggota |
 | 4 request bersamaan (2 KTP + 2 NPWP), mode vLLM | ±7.5 detik total (di-batch) |
 | 1 request KTP, `FRAUD_CHECK=true` vs `false` | sama (±6.5–6.9 detik); fraud check berjalan paralel |

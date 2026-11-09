@@ -22,7 +22,7 @@ flowchart LR
         end
     end
 
-    client -- "POST /extract/ktp · npwp · kk<br/>(multipart / base64)" --> api
+    client -- "POST /extract/ktp · npwp · kk · buku-tabungan<br/>(multipart / base64)" --> api
     api -- "POST /v1/chat/completions<br/>gambar base64 + prompt + JSON schema" --> engine
     engine -- "mount ./model read-only,<br/>load saat startup" --> weights
     engine --> vram
@@ -62,13 +62,14 @@ sequenceDiagram
     A-->>C: 200 {"success":true,"data":{...},"raw_output":"...","fraud_check":{...}}
 ```
 
-Untuk NPWP dan KK alurnya sama; yang berbeda hanya prompt, schema, dan batasnya:
+Untuk NPWP, KK, dan buku tabungan alurnya sama; yang berbeda hanya prompt, schema, dan batasnya:
 
 | Dokumen | Batas piksel gambar | Batas token output |
 |---|---|---|
 | KTP | `1003520` (±1 MP, `MAX_PIXELS`) | `512` |
 | NPWP | `1003520` (±1 MP, `MAX_PIXELS`) | `512` |
 | KK | `2508800` (±2.5 MP) | `3072` |
+| Buku Tabungan | `1003520` (±1 MP, `MAX_PIXELS`) | `512` |
 
 Fraud check memakai gambar **sebelum** diperkecil, karena pola moiré layar hilang saat gambar di-resize. Pemeriksaan berjalan di thread terpisah selama vLLM bekerja, jadi tidak menambah waktu respons. Jika gagal, `fraud_check` bernilai `null` dan OCR tetap berhasil. Detail di [Deteksi fotokopi & layar](/guide/fraud-check).
 
@@ -82,12 +83,12 @@ flowchart TD
 
     subgraph pkg["ocr_service/"]
         api["api.py<br/>route per dokumen, validasi upload, mapping error HTTP"]
-        docs["documents.py<br/>registry: KTP, NPWP, KK<br/>(schema + prompt + batas)"]
-        prompts["prompts.py<br/>KTP_PROMPT · NPWP_PROMPT · KK_PROMPT"]
+        docs["documents.py<br/>registry: KTP, NPWP, KK, Buku Tabungan<br/>(schema + prompt + batas)"]
+        prompts["prompts.py<br/>KTP_PROMPT · NPWP_PROMPT · KK_PROMPT · BUKU_TABUNGAN_PROMPT"]
         extraction["extraction.py<br/>parse_fields"]
         images["images.py<br/>decode · limit_pixels"]
         fraud["fraud.py<br/>check_image (fotokopi · foto layar)"]
-        schemas["schemas.py<br/>KTPData · NPWPData · KKData"]
+        schemas["schemas.py<br/>KTPData · NPWPData · KKData · BukuTabunganData"]
         config["config.py<br/>Settings dari env var"]
 
         subgraph backends["backends/"]
@@ -110,4 +111,4 @@ flowchart TD
     base -.-> hfb
 ```
 
-Backend dipilih sekali saat startup lewat `INFERENCE_BACKEND`. Backend tidak tahu soal KTP/NPWP/KK; ia hanya menerima gambar, prompt, JSON schema, dan batas token. Karena itu menambah jenis dokumen tidak perlu mengubah backend.
+Backend dipilih sekali saat startup lewat `INFERENCE_BACKEND`. Backend tidak tahu soal KTP/NPWP/KK/buku tabungan; ia hanya menerima gambar, prompt, JSON schema, dan batas token. Karena itu menambah jenis dokumen tidak perlu mengubah backend.

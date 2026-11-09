@@ -11,8 +11,8 @@ model/                  bobot Qwen2.5-VL-3B (±7.5 GB, tidak di-commit)
 docs/                   situs dokumentasi ini (VitePress)
 ocr_service/
 ├── config.py           Settings dari environment variable
-├── schemas.py          KTPData, NPWPData, KKData, response models
-├── documents.py        registry jenis dokumen (KTP, NPWP, KK): schema + prompt + batas per dokumen
+├── schemas.py          KTPData, NPWPData, KKData, BukuTabunganData, response models
+├── documents.py        registry jenis dokumen (KTP, NPWP, KK, Buku Tabungan): schema + prompt + batas per dokumen
 ├── prompts.py          prompt khusus per dokumen (layout kartu + aturan per field)
 ├── extraction.py       parsing output model
 ├── images.py           decode & resize gambar

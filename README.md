@@ -1,4 +1,4 @@
-# OCR API (KTP, NPWP & Kartu Keluarga)
+# OCR API (KTP, NPWP, Kartu Keluarga & Buku Tabungan)
 
 Service FastAPI untuk mengekstrak data terstruktur dari foto dokumen identitas Indonesia menggunakan model vision-language **Qwen2.5-VL-3B-Instruct**. Satu service, dibedakan per endpoint:
 
@@ -121,11 +121,11 @@ flowchart TD
 
     subgraph pkg["ocr_service/"]
         api["api.py<br/>route per dokumen, validasi upload, mapping error HTTP"]
-        docs["documents.py<br/>registry: KTP, NPWP<br/>(schema + prompt)"]
-        prompts["prompts.py<br/>KTP_PROMPT · NPWP_PROMPT"]
+        docs["documents.py<br/>registry: KTP, NPWP, KK, Buku Tabungan<br/>(schema + prompt)"]
+        prompts["prompts.py<br/>KTP_PROMPT · NPWP_PROMPT · KK_PROMPT · BUKU_TABUNGAN_PROMPT"]
         extraction["extraction.py<br/>parse_fields"]
         images["images.py<br/>decode · limit_pixels"]
-        schemas["schemas.py<br/>KTPData · NPWPData · responses"]
+        schemas["schemas.py<br/>KTPData · NPWPData · KKData · BukuTabunganData · responses"]
         config["config.py<br/>Settings dari env var"]
 
         subgraph backends["backends/"]
@@ -181,6 +181,17 @@ Backend dipilih sekali saat startup lewat `INFERENCE_BACKEND`. Backend tidak tah
 | `KPP` | Kantor Pelayanan Pajak penerbit, mis. `KPP PRATAMA JAKARTA SETIABUDI SATU` | Bebas |
 | `TANGGAL_TERDAFTAR` | Tanggal terdaftar sesuai cetakan | Bebas |
 
+**Buku Tabungan (cover):**
+
+| Field | Keterangan | Nilai yang diizinkan (mode vLLM) |
+|---|---|---|
+| `BANK` | Nama bank sesuai logo/judul | Bebas |
+| `NAMA_NASABAH` | Nama pemilik rekening | Bebas |
+| `NO_REKENING` | Nomor rekening, hanya digit | 8–18 digit |
+| `JENIS_TABUNGAN` | Nama produk tabungan | Bebas |
+| `CABANG` | Nama cabang/KCP/unit | Bebas |
+| `KODE_CABANG` | Kode cabang jika tercetak | Bebas |
+
 **Kartu Keluarga (KK):** field header, ditambah `ANGGOTA_KELUARGA` = list berisi satu objek per anggota keluarga (baris tabel atas dan bawah dengan nomor yang sama digabung).
 
 | Field header | Keterangan | Nilai yang diizinkan (mode vLLM) |
@@ -205,9 +216,10 @@ Field yang tidak terbaca dikembalikan sebagai string kosong `""` (selalu diizink
 
 ## Prompt & batasan output
 
-Setiap dokumen punya prompt sendiri di `ocr_service/prompts.py` (`KTP_PROMPT`, `NPWP_PROMPT`, `KK_PROMPT`). Prompt menjelaskan tata letak kartu dan aturan tiap field, karena itulah sumber salah baca yang paling sering:
+Setiap dokumen punya prompt sendiri di `ocr_service/prompts.py` (`KTP_PROMPT`, `NPWP_PROMPT`, `KK_PROMPT`, `BUKU_TABUNGAN_PROMPT`). Prompt menjelaskan tata letak kartu dan aturan tiap field, karena itulah sumber salah baca yang paling sering:
 
 - **KTP:** urutan baris di kartu disebutkan satu per satu. `Gol. Darah` sering kosong; tanpa penjelasan ini model mengisinya dengan nilai baris berikutnya sehingga `ALAMAT`, `RT_RW`, `KEL_DESA`, dst. ikut bergeser satu baris. Prompt juga menegaskan `BERLAKU_HINGGA` diambil dari baris "Berlaku Hingga", bukan dari kota/tanggal terbit di bawah foto.
+- **Buku Tabungan:** satu prompt untuk semua bank; mengambil bank dari logo/judul cover dan memisahkan nomor rekening dari nomor kartu/CIF/kode cabang.
 - **NPWP:** menjelaskan format nomor lama dan baru, memisahkan alamat wajib pajak dari nama KPP, dan melarang menyalin nomor NPWP ke `NIK`.
 - **KK:** menjelaskan header dan kedua tabel anggota, dan meminta baris N tabel atas digabung dengan baris N tabel bawah menjadi satu anggota, tanpa menggeser nilai ke baris/kolom tetangga.
 - Semuanya meminta teks dibaca **persis sesuai cetakan** (tanpa koreksi ejaan) dan memberi petunjuk angka yang sering tertukar (`O`→`0`, `I`→`1`, `B`→`8`, `S`→`5`) untuk NIK/NPWP. Daftar key JSON di akhir prompt dibuat otomatis dari model data, jadi tidak bisa berbeda dari schema.
@@ -611,8 +623,8 @@ requirements-hf.txt     + torch/transformers untuk mode hf
 model/                  bobot Qwen2.5-VL-3B (±7.5 GB)
 ocr_service/
 ├── config.py           Settings dari environment variable
-├── schemas.py          KTPData, NPWPData, KKData, response models
-├── documents.py        registry jenis dokumen (KTP, NPWP, KK): schema + prompt + batas per dokumen
+├── schemas.py          KTPData, NPWPData, KKData, BukuTabunganData, response models
+├── documents.py        registry jenis dokumen (KTP, NPWP, KK, Buku Tabungan): schema + prompt + batas per dokumen
 ├── prompts.py          prompt khusus per dokumen (layout kartu + aturan per field)
 ├── extraction.py       parsing output model
 ├── images.py           decode & resize gambar

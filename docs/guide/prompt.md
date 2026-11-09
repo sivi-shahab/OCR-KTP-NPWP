@@ -4,7 +4,7 @@ Kualitas hasil ditentukan oleh dua hal: **prompt** yang menjelaskan tata letak d
 
 ## Prompt per dokumen
 
-Setiap dokumen punya prompt sendiri di `ocr_service/prompts.py` (`KTP_PROMPT`, `NPWP_PROMPT`, `KK_PROMPT`). Prompt menjelaskan tata letak kartu dan aturan tiap field, karena salah posisi adalah sumber salah baca yang paling sering.
+Setiap dokumen punya prompt sendiri di `ocr_service/prompts.py` (`KTP_PROMPT`, `NPWP_PROMPT`, `KK_PROMPT`, `BUKU_TABUNGAN_PROMPT`). Prompt menjelaskan tata letak kartu dan aturan tiap field, karena salah posisi adalah sumber salah baca yang paling sering.
 
 ### KTP
 
@@ -18,10 +18,14 @@ Menjelaskan format nomor lama dan baru, memisahkan alamat wajib pajak dari nama 
 
 Menjelaskan header dan kedua tabel anggota, dan meminta baris N tabel atas digabung dengan baris N tabel bawah menjadi satu anggota, tanpa menggeser nilai ke baris atau kolom tetangga.
 
+### Buku Tabungan
+
+Satu prompt untuk semua bank. Prompt menyebut bahwa tata letak berbeda per bank, mengambil nama bank dari logo atau judul besar di cover, dan memisahkan `NO_REKENING` dari nomor kartu, CIF, dan kode cabang. Nomor rekening dikembalikan sebagai digit saja (spasi, titik, dan strip dihapus). Belum diuji dengan cover asli: lihat [Buku Tabungan](/dokumen/buku-tabungan).
+
 ### Aturan bersama
 
 - Teks dibaca **persis sesuai cetakan**, tanpa koreksi ejaan.
-- Petunjuk angka yang sering tertukar untuk NIK/NPWP/No. KK: `O`→`0`, `I`→`1`, `B`→`8`, `S`→`5`.
+- Petunjuk angka yang sering tertukar untuk NIK/NPWP/No. KK/No. Rekening: `O`→`0`, `I`→`1`, `B`→`8`, `S`→`5`.
 - Daftar key JSON di akhir prompt dibuat otomatis dari model data, jadi tidak bisa berbeda dari schema.
 
 ## JSON schema (constrained decoding)
@@ -42,6 +46,7 @@ Contoh: huruf yang rusak di kartu tidak lagi menghasilkan `PEREMPUA-J`, karena m
 | `STATUS_PERKAWINAN` (KTP) | `BELUM KAWIN`, `KAWIN`, `CERAI HIDUP`, `CERAI MATI` |
 | `NPWP` | `NN.NNN.NNN.N-NNN.NNN` atau 15–16 digit |
 | `KODE_POS` (KK) | Tepat 5 digit |
+| `NO_REKENING` (Buku Tabungan) | 8–18 digit |
 | `TANGGAL_LAHIR` (anggota KK) | `DD-MM-YYYY` |
 
 String kosong `""` selalu diizinkan, juga untuk field yang dibatasi.
