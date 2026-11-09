@@ -80,6 +80,18 @@ class KKData(BaseModel):
     ANGGOTA_KELUARGA: list[KKMember] = Field(default_factory=list)
 
 
+class BukuTabunganData(BaseModel):
+    """Cover / identity page of an Indonesian bank savings passbook (buku tabungan)."""
+
+    BANK: str = ""
+    NAMA_NASABAH: str = ""
+    # Digits only; lengths differ per bank, so only the digit set is constrained here
+    NO_REKENING: str = _constrained(pattern=r"[0-9]{8,18}")
+    JENIS_TABUNGAN: str = ""
+    CABANG: str = ""
+    KODE_CABANG: str = ""
+
+
 class FraudCheck(BaseModel):
     """Heuristic presentation-attack check. Flag-only: extraction runs regardless."""
 
@@ -108,6 +120,13 @@ class NPWPResponse(BaseModel):
 class KKResponse(BaseModel):
     success: bool
     data: KKData
+    raw_output: str
+    fraud_check: FraudCheck | None = None
+
+
+class BukuTabunganResponse(BaseModel):
+    success: bool
+    data: BukuTabunganData
     raw_output: str
     fraud_check: FraudCheck | None = None
 

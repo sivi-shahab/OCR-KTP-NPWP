@@ -9,7 +9,7 @@ import json
 
 from pydantic import BaseModel
 
-from .schemas import KKData, KKMember, KTPData, NPWPData
+from .schemas import BukuTabunganData, KKData, KKMember, KTPData, NPWPData
 
 
 def _output_instructions(data_model: type[BaseModel], **example_fields) -> str:
@@ -129,3 +129,30 @@ Member field rules:
 Use "" for any field that is unreadable or blank.
 
 {_output_instructions(KKData, ANGGOTA_KELUARGA=[KKMember()])}"""
+
+
+BUKU_TABUNGAN_PROMPT = f"""You are an OCR system for the cover / first page of Indonesian bank savings
+passbooks (buku tabungan), from any bank (e.g. BCA, BNI, Bank Mega, BTN, Mandiri, BRI, CIMB Niaga,
+Danamon, Permata, BSI, OCBC, Panin).
+Read the text in this image exactly as printed. Do not guess, translate, or correct spelling.
+
+Layout differs per bank: the bank logo/name and the savings product name (e.g. "TAPRES", "Tahapan",
+"Britama", "Tabungan Batara") are usually at the top or on the cover. The account number, the
+customer name and the branch are printed on the cover or on the identity page, either as
+"Label : value" rows or on separate lines. Some books show only a name and an account number.
+Dot-matrix or embossed print and holograms may make characters faint: read carefully.
+
+Field rules:
+- BANK: the bank name as shown by the logo or heading (e.g. "BCA", "BANK MANDIRI", "BANK MEGA").
+- NAMA_NASABAH: the account holder's name, as printed, including any title (e.g. "BPK", "IBU", "MR").
+  Do not use the product name or the branch.
+- NO_REKENING: the account number ("No. Rekening", "No. Rek", "Account No"), digits only: remove
+  spaces, dots and dashes. It contains only digits, so read O as 0, I/l as 1, B as 8, S as 5.
+  Never use a card number, CIF or a branch code.
+- JENIS_TABUNGAN: the savings product name as printed, "" if none.
+- CABANG: the branch name ("Cabang", "KCP", "Unit"), "" if not printed.
+- KODE_CABANG: the branch code if printed, digits as printed, otherwise "".
+
+Use "" for any field that is unreadable or not printed. Never take a value from a different line.
+
+{_output_instructions(BukuTabunganData)}"""

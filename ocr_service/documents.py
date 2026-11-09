@@ -8,8 +8,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from .prompts import KK_PROMPT, KTP_PROMPT, NPWP_PROMPT
-from .schemas import KKData, KKResponse, KTPData, KTPResponse, NPWPData, NPWPResponse
+from .prompts import BUKU_TABUNGAN_PROMPT, KK_PROMPT, KTP_PROMPT, NPWP_PROMPT
+from .schemas import BukuTabunganData, BukuTabunganResponse, KKData, KKResponse, KTPData, KTPResponse, NPWPData, NPWPResponse
 
 
 @dataclass(frozen=True)
@@ -72,4 +72,16 @@ KK = DocumentType(
     max_new_tokens=3072,
 )
 
-DOCUMENTS: tuple[DocumentType, ...] = (KTP, NPWP, KK)
+BUKU_TABUNGAN = DocumentType(
+    key="buku-tabungan",
+    label="Buku Tabungan",
+    data_model=BukuTabunganData,
+    response_model=BukuTabunganResponse,
+    prompt=BUKU_TABUNGAN_PROMPT,
+    log_fields=("BANK", "NAMA_NASABAH"),
+    # Covers are glossy and colourful (logos, holograms) but designs vary a lot per bank.
+    # Not calibrated on real captures yet: raise only after measuring genuine covers.
+    min_colour_fraction=0.05,
+)
+
+DOCUMENTS: tuple[DocumentType, ...] = (KTP, NPWP, KK, BUKU_TABUNGAN)
