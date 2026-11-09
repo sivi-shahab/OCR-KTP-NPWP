@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: OCR API
-  text: KTP, NPWP & Kartu Keluarga jadi JSON
+  text: KTP, NPWP, KK & Buku Tabungan jadi JSON
   tagline: Satu service FastAPI dengan model vision-language Qwen2.5-VL-3B di atas vLLM. Kirim foto dokumen, terima data terstruktur yang selalu valid sesuai schema.
   image:
     src: /logo.svg
@@ -35,6 +35,11 @@ features:
     details: Header KK plus daftar anggota keluarga. Baris tabel atas dan bawah dengan nomor yang sama digabung menjadi satu objek per anggota.
     link: /dokumen/kk
     linkText: Field KK
+  - icon: 🏦
+    title: Cover Buku Tabungan
+    details: Satu endpoint untuk cover buku tabungan bank mana pun (BCA, BNI, Mandiri, BRI, BTN, Bank Mega, dll). Bank, nama nasabah, nomor rekening, jenis tabungan, dan cabang. Belum diuji dengan cover asli.
+    link: /dokumen/buku-tabungan
+    linkText: Field Buku Tabungan
   - icon: 🛡️
     title: Deteksi fotokopi & foto layar
     details: Setiap respons membawa fraud_check yang menandai fotokopi hitam-putih dan dokumen yang difoto dari layar laptop/HP (pola moiré). Hanya penanda, OCR tetap berjalan.
@@ -103,7 +108,7 @@ Detail lengkapnya ada di [Arsitektur](/guide/arsitektur).
 |---|---|
 | Mencoba API dalam 5 menit | [Quick start](/guide/quick-start) |
 | Memanggil API dari aplikasi (Python, JavaScript, Java) | [Integrasi dari aplikasi](/tutorial/integrasi) |
-| Tahu field apa saja yang dikembalikan | [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk) |
+| Tahu field apa saja yang dikembalikan | [KTP](/dokumen/ktp) · [NPWP](/dokumen/npwp) · [KK](/dokumen/kk) · [Buku Tabungan](/dokumen/buku-tabungan) |
 | Menjalankan dan memelihara server | [Deployment Docker Compose](/operasional/deployment) |
 | Memperbaiki field yang salah baca | [Prompt & batasan output](/guide/prompt) |
 | Menangani dokumen fotokopi / foto layar | [Deteksi fotokopi & layar](/guide/fraud-check) |

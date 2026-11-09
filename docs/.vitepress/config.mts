@@ -5,7 +5,7 @@ export default withMermaid(
   defineConfig({
     lang: 'id-ID',
     title: 'OCR API',
-    description: 'Ekstraksi data terstruktur dari KTP, NPWP, dan Kartu Keluarga dengan Qwen2.5-VL',
+    description: 'Ekstraksi data terstruktur dari KTP, NPWP, Kartu Keluarga, dan Buku Tabungan dengan Qwen2.5-VL',
     base: '/OCR-KTP-NPWP/',
     cleanUrls: true,
     lastUpdated: true,
